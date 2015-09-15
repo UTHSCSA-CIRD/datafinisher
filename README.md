@@ -33,4 +33,3 @@ Here are the functional parts:
  * **sql/dd.sql**              A script for creating the DATA_DICTIONARY table
  * **sql/df.cfg**              The config file, which includes many snippets of SQL that are called from various places in df.py
 
-Thanks, have a nice day!
