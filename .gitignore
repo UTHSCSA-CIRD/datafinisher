@@ -18,3 +18,5 @@ nogit
 *.pyc
 # Kate
 *-swp
+# graphviz and probably others
+*.swp
