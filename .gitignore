@@ -16,3 +16,5 @@ nogit
 *.Rproj
 # Python
 *.pyc
+# Kate
+*-swp
