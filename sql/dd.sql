@@ -1,4 +1,34 @@
 create table if not exists df_dtdict as 
+/*
+select distinct cid,ddomain,ccd,'' mxinsts,'' mxfacts,
+'v'||substr('000'||cid,-3) colcd
+-- the below are semi-human-readable, unique, and relatively short column names
+--,'v'||substr('000'||cid,-3)||'_'||replace(trim(drl(shw(name,15))),' ','_') colid
+,'v'||substr('000'||cid,-3)||'_'||replace(trim(name,15),' ','_') colid
+,concept_path,name,mod,tval_char,nval_num,valueflag_cd,units_cd,confidence_num
+,quantity_num,location_cd,valtype_cd,0 done
+,'UNKNOWN_DATA_ELEMENT' rule
+from 
+(select df_codeid.id cid,group_concat(distinct ddomain) ddomain,count(distinct ccd) ccd,concept_path,name
+from df_codeid left join variable on df_codeid.id = variable.id
+group by df_codeid.id) dfc
+left join
+(select id
+,count(distinct case when modifier_cd = '@' then null else modifier_cd end) mod
+,count(distinct case when tval_char in ('E','TNP') then null else tval_char end) tval_char
+,count(nval_num) nval_num
+,count(distinct valueflag_cd) valueflag_cd
+,count(distinct units_cd) units_cd
+,count(distinct confidence_num) confidence_num
+,count(distinct quantity_num) quantity_num
+,count(distinct location_cd) location_cd
+,group_concat(distinct valtype_cd) valtype_cd
+from df_obsfact group by id) dfo
+on cid = id
+;
+*/
+
+
 select distinct df_codeid.*,mxinsts,mxfacts,'v'||substr('000'||cid,-3) colcd
 -- the below are semi-human-readable, unique, and relatively short column names
 ,'v'||substr('000'||cid,-3)||'_'||replace(trim(drl(shw(name,15))),' ','_') colid
