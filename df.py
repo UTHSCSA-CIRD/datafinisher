@@ -152,6 +152,7 @@ def main(cnx,fname,style,dtcp):
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
     # create the create_dynsql table, which may make most of these individually defined tables unnecessary
+    pdb.set_trace();
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     

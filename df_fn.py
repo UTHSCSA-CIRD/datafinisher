@@ -199,6 +199,8 @@ def ds(lval,rval=' ',lfun=' {0} ',rfun=' {0} ',op=' ',joiner=','):
   # TODO: check for mismatched list lengths, non-lists, etc.
   # TODO: check for non-string arguments (catch and fix numeric)
   # TODO: check for non-string lists (catch and fix numeric)
+  # TODO: make it so that if joiner is None, then don't join, just return list
+  # (so that we can use it to combine conditions)
   # for any string args, turn them into lists and extend to same length
   if isinstance(rval,str): rval = [rval]*ln;
   if isinstance(lfun,str): lfun = [lfun]*ln;
