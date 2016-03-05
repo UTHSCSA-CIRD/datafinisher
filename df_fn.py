@@ -7,6 +7,11 @@ if cwd == '': cwd = '.'
 # not the user wants verbose logging
 from df import dolog
 
+# useful lists
+# columns that may affect the interpretation of the data
+cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
+cols_patdim = ['birth_date','sex_cd','language_cd','race_cd']
+
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
 ###############################################################################
@@ -88,14 +93,16 @@ class debugaggregate:
 # '.*\\\\([VE0-9]{3}\.{0,1}[0-9]{0,2})\\\\.*'
 def ifgrp(pattern,txt):
     rs = re.search(re.compile(pattern),txt)
-    
     if rs == None:
       return txt 
     else:
       return rs.group(1)
+    
+def subgrp(pattern,rep,txt):
+  return re.sub(pattern,str(rep),str(txt))
 
 # The rdt and rdst functions aren't exactly user-defined SQLite functions...
-# They are python function that emit a string to concatenate into a larger SQL query
+# They are python functions that emit a string to concatenate into a larger SQL query
 # and send back to SQL... because SQLite has a native julianday() function that's super
 # easy to use. So, think of rdt and rdst as pseudo-UDFs
 def rdt(datecol,factor):
@@ -195,22 +202,32 @@ Dynamic SQLifier?
 # the core function
 def ds(lval,rval=' ',lfun=' {0} ',rfun=' {0} ',op=' ',joiner=','):
   # check for optional args and expand as needed
+  if isinstance(lval,str): lval = [lval];
+  else: lval = map(str,lval);
   ln = len(lval);
   # TODO: check for mismatched list lengths, non-lists, etc.
   # TODO: check for non-string arguments (catch and fix numeric)
-  # TODO: check for non-string lists (catch and fix numeric)
-  # TODO: make it so that if joiner is None, then don't join, just return list
+  # DONE: check for non-string lists (catch and fix numeric)
+  # DONE: make it so that if joiner is None, then don't join, just return list
   # (so that we can use it to combine conditions)
   # for any string args, turn them into lists and extend to same length
-  if isinstance(rval,str): rval = [rval]*ln;
+  if isinstance(rval,str): rval = [rval]*ln
+  else: rval = map(str,rval);
   if isinstance(lfun,str): lfun = [lfun]*ln;
+  else: lfun = map(str,lfun);
   if isinstance(rfun,str): rfun = [rfun]*ln;
+  else: rfun = map(str,rfun);
   if isinstance(op,str): op = [op]*ln;
+  else: op = map(str,op);
   # turn into tuples
   rawvals = zip(lfun,lval,op,rfun,rval);
   # payload
-  return joiner.join([str(xx[0]).format(str(xx[1]))+\
-    str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals]);
+  out = [str(xx[0]).format(str(xx[1]))+\
+    str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals];
+  if joiner is None:
+    return out;
+  else:
+    return joiner.join(out);
 
 # convenience wrappers
 
