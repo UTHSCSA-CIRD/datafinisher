@@ -231,7 +231,7 @@ def main(cnx,fname,style,dtcp):
     of strings of the same length as the first argument or a single string (which will 
     be turned into a list the same length as the first argument), and an optional third 
     list of strings of the same length as the first argument or a single string (which 
-    will be turned into a list the same length as the first one). The second list should 
+    will be turned into a list the same length as the first one). The third list should 
     have a {0} in it, into which each member of the first list will be substituted. These
     will then all be joined with commas for an instant SELECT clause. Let's say we wanted
     to group_concat distinct all the columns we care about from OBSERVATION_FACT. As of 
