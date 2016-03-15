@@ -140,6 +140,7 @@ def main(cnx,fname,style,dtcp):
     create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
     tprint("created rule definitions",tt);tt = time.time()
 
+    # Read in and run the sql/dd.sql file
     with open(ddsql,'r') as ddf:
 	ddcreate = ddf.read()
     logged_execute(cnx, ddcreate)
@@ -148,16 +149,20 @@ def main(cnx,fname,style,dtcp):
     # rather than running the same complicated select statement multiple times 
     # for each rule in df_dtdict lets just run each selection criterion 
     # once and save it as a tag in the new RULE column
+    # This is a possible place to use the new dsSel function (see below)
     [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
     # create the create_dynsql table, which may make most of these individually defined tables unnecessary
+    # see if the ugly code hiding behind par['create_dynsql'] can be replaced by more concise dsSel
+    # Or maybe even if df_dynsql table itself can be replaced and we could do it all in one step
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     
     # each row in create_dynsql will correspond to one column in the output
     # here we break create_dynsql into more manageable chunks
+    # again, if generated using dsSel, we might be able to manage those chunks script-side
     numjoins = logged_execute(cnx, "select count(distinct jcode) from df_dynsql").fetchone()[0]
     [logged_execute(cnx, par['chunk_dynsql'].format(ii,joffset)) for ii in range(0,numjoins,joffset)]
     cnx.commit();
