@@ -35,18 +35,29 @@ from df_fn import *
 def main(cnx,fname,style,dtcp):
     tt = time.time(); startt = tt
     # declare some custom functions to use within SQL queries (awesome!)
+    # returns matching regexp if found, otherwise original string
     cnx.create_function("grs",2,ifgrp)
+    # regexp replace... i.e. sed
     cnx.create_function("grsub",3,subgrp)
+    # omit "least relevant" words to make a character string shorter
     cnx.create_function("shw",2,shortenwords)
+    # shorten words by squeezing out certain characters
     cnx.create_function("drl",1,dropletters)
+    # string aggregation specific for diagnoses and codes that behave like them
     cnx.create_aggregate("dgr",2,diaggregate)
+    # string aggregation for user-specified fields
     cnx.create_aggregate("igr",11,infoaggregate)
+    # the kitchen-sink aggregator that tokenizes and concatenates everything
     cnx.create_aggregate("xgr",11,debugaggregate)
+    
+    # TODO: this is a hardcoded dependency on LOINC and ICD9 strings in paths! 
+    #       This is not an i2b2-ism, it's an EPICism, and possibly a HERONism
+    #       Should be configurable!
+    # regexps to use with grs SQL UDF (above)
     # not quite foolproof-- still pulls in PROCID's, so we filter for DX_ID
     # for ICD9 codes embedded in paths
     icd9grep = '.*\\\\([VE0-9]{3}(\\.[0-9]{0,2}){0,1})\\\\.*'
     # for ICD9 codes embedded in i2b2 CONCEPT_CD style codes
-    #icd9grep_c = '.*([VE0-9]{3}(\\.[0-9]{0,2}){0,1})'
     icd9grep_c = '^ICD9:([VE0-9]{3}(\\.[0-9]{0,2}){0,1})$'
     # for LOINC codes embedded in paths
     loincgrep = '\\\\([0-9]{4,5}-[0-9])\\\\COMPONENT'
@@ -60,12 +71,15 @@ def main(cnx,fname,style,dtcp):
     # to be what we named the cursor object we created above, and execute() is a method that cursor objects have)
     # DONE: create an id to concept_cd mapping table (and filtering out redundant facts taken care of here)
     # TODO: parameterize the fact-filtering
+
+    # Variable persistence not fully implemented and this implementation might 
+    # not be a good idea. If this block (through the "Uh oh...") isn't broken, 
+    # ignore it for now. Ditto with df_log, but used even less.
     # create a log table
-    logged_execute(cnx, """create table if not exists datafinisher_log as
+    logged_execute(cnx, """create table if not exists df_log as
       select datetime() timestamp,
       'FirstEntryKey                                     ' key,
       'FirstEntryVal                                     ' val""")
-    
     # certain values should not be changed after the first run
     logged_execute(cnx, "CREATE TABLE if not exists df_vars ( varname TEXT, textval TEXT, numval NUM )")
     # TODO: oldtcp is a candidate for renaming
@@ -81,7 +95,11 @@ def main(cnx,fname,style,dtcp):
 	print "To get rid of it, do `python df.py -c dbfile`"
     else:
       print "Uh oh. Something is wrong there should not be more than one 'dtcp' entry in df_vars, debug time"
-        
+
+    # Sooner or later we will need to write rules that make modifier codes human readable
+    # E.g.: allergies, family history. MODIFIER_DIMENSION has mappings for such codes. If 
+    # the site providing the databuilder file did not include any entries in its MODIFIER_DIMENSION
+    # we use our own, below.
     if logged_execute(cnx, "select count(*) from modifier_dimension").fetchone()[0] == 0:
       print "modifier_dimension is empty, let's fill it"
       # we load our local fallback db
@@ -89,9 +107,10 @@ def main(cnx,fname,style,dtcp):
       # and copy from it into the input .db file's modifier_dimension
       logged_execute(cnx, "insert into modifier_dimension select * from dfdb.modifier_dimension")
       # and log that we did so
-      logged_execute(cnx, "insert into datafinisher_log select datetime(),'insert','modifier_dimension'")
+      logged_execute(cnx, "insert into df_log select datetime(),'insert','modifier_dimension'")
       cnx.commit()
 
+    # tprint is what echoes progress to console
     tprint("initialized variables",tt);tt = time.time()
 
     # df_joinme has all unique patient_num and start_date combos, and therefore it defines
@@ -121,22 +140,22 @@ def main(cnx,fname,style,dtcp):
     # LOINC nodes modified analogously to ICD9 nodes above
     #logged_execute(cnx, """update df_codeid set cpath = substr(ccd,instr(ccd,':')+1) where ddomain = 'LOINC'""")
     logged_execute(cnx, "update df_codeid_tmp set cpath = replace(ccd,'LOINC:','') where ddomain = 'LOINC'")
+    # df_codeid gets created here from the distinct values of df_codeid_tmp
     logged_execute(cnx, par['create_codeid'])
     logged_execute(cnx, "create UNIQUE INDEX if not exists df_ix_df_codeid ON df_codeid (id,cpath,ccd)")
     cnx.commit()
     logged_execute(cnx, "drop table if exists df_codeid_tmp")
     tprint("mapped concept codes in df_codeid",tt);tt = time.time()
     
-    # The create_obsfact table may make most of the views unneccessary
+    # The create_obsfact table may make most of the views unneccessary... it did!
     logged_execute(cnx, par['create_obsfact'].format(rdst(dtcp)))
     logged_execute(cnx, "create INDEX if not exists df_ix_obs ON df_obsfact(pn,sd,concept_cd,instance_num,modifier_cd)")
     cnx.commit()
     tprint("created df_obsfact table and index",tt);tt = time.time()
     
-    # create the df_rules (rule definitions) table
-    # the current implementation is just a temporary hack so that the rest of the script will run
-    # TODO: As per Ticket #19, this needs to be changed so the rules get read 
-    # in from sql/ruledefs.csv
+    
+    # DONE: As per Ticket #19, this was changed so the rules get read 
+    # in from ./ruledefs.csv and a df_rules table is created from it
     create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
     tprint("created rule definitions",tt);tt = time.time()
 
