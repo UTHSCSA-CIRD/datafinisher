@@ -236,60 +236,6 @@ def main(cnx,fname,style,dtcp):
 	  csv.writer(ff).writerows(result)
 	  
     tprint("wrote output table to file",tt);tt = time.time()
-    print """\n\n
-    Hi! We take time out from this script to step through some code for
-    making dynamic SQL much more concisely, which will help in creating
-    the tables of distinct values.
-    """;
-    import pdb; pdb.set_trace();
-    print """
-    First up: the grsub UDF. It's sed for SQLite. For example, to replace
-    all occurrences of a digit in a string with '0' you could use the following:
-    """
-    print logged_execute(cnx,"SELECT GRSUB('\d',0,'asd70934wa3rADG89-A99428')").fetchall();
-    print """
-    The first arg is a regexp pattern, the second is what to replace occurences with,
-    and the third is the string in which to search-replace. Usually this will be the 
-    name of a column, unquoted of course, rather than a quoted string.
-    
-    Next is the dsSel() function. It takes a list of strings, an optional second list
-    of strings of the same length as the first argument or a single string (which will 
-    be turned into a list the same length as the first argument), and an optional third 
-    list of strings of the same length as the first argument or a single string (which 
-    will be turned into a list the same length as the first one). The third list should 
-    have a {0} in it, into which each member of the first list will be substituted. These
-    will then all be joined with commas for an instant SELECT clause. Let's say we wanted
-    to group_concat distinct all the columns we care about from OBSERVATION_FACT. As of 
-    this commit, for convenience we store those columns in the cols_obsfact list, declared 
-    in df_fn.py and exported here along with everything else in df_fn.py. We also have a
-    cols_patdim.
-    """
-    print dsSel(cols_obsfact,lfun="GROUP_CONCAT(DISTINCT {0})");
-    print """
-    It's not a complete SQL statement, just a concise way to create the body of a very 
-    repetitive SELECT clause. You can then prepend and append the strings to make it a 
-    valid SELECT:
-    """
-    print "SELECT "+dsSel(cols_obsfact,lfun="GROUP_CONCAT(DISTINCT {0})")+" FROM observation_fact GROUP BY concept_cd";
-    print """
-    You'll probably want to combine it with GRSUB, and nothing prevents you from doing so.
-    """
-    print "SELECT "+dsSel(cols_obsfact,lfun="GROUP_CONCAT(DISTINCT GRSUB('\d',0,{0}))")+" FROM observation_fact GROUP BY GRSUB('\d',0,concept_cd)";
-    print """
-    Now you can send this query to the database and capture the output. Notice that we are
-    adding ['start_date'] to cols_obsfact. This is because the start_date column only 
-    exists in observation_fact. If we wanted to run the same query on df_obsfact, we would
-    have to instead do ['sd']+cols_obsfact.
-    """
-    print logged_execute(cnx,"SELECT "+dsSel(['start_date']+cols_obsfact,lfun="GROUP_CONCAT(DISTINCT GRSUB('\d',0,{0}))")+" FROM observation_fact GROUP BY GRSUB('\d',0,concept_cd)").fetchmany(10);
-    print """
-    Hint: for doing the same thing with patient_dimension, don't bother with GROUP_CONCAT or GROUP BY
-    Just SELECT DISTINCT and GRSUB each of the columns of interest. There will be relatively few rows.
-    
-    Using dsSel() in select clauses, dsCond() for where and join clauses, and perhaps other to-be-written
-    wrappers of the underlying ds() function we can eventually refactor the dynamic SQL generation in this
-    script to be a lot less repetitive 
-    """
     tprint("TOTAL RUNTIME",startt)
 
     """
