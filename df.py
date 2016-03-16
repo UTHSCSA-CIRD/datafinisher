@@ -237,6 +237,10 @@ def main(cnx,fname,style,dtcp):
 	  
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
+    cnf = ConfigParser.ConfigParser()
+    cnf.read('sql/test.cfg')
+    print cnf.sections()
+    pdb.set_trace()
 
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
