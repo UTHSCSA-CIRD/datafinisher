@@ -74,9 +74,9 @@ def main(cnx,fname,style,dtcp):
 
     # Variable persistence not fully implemented and this implementation might 
     # not be a good idea. If this block (through the "Uh oh...") isn't broken, 
-    # ignore it for now. Ditto with df_log, but used even less.
+    # ignore it for now. Ditto with datafinisher_log, but used even less.
     # create a log table
-    logged_execute(cnx, """create table if not exists df_log as
+    logged_execute(cnx, """create table if not exists datafinisher_log as
       select datetime() timestamp,
       'FirstEntryKey                                     ' key,
       'FirstEntryVal                                     ' val""")
@@ -107,7 +107,7 @@ def main(cnx,fname,style,dtcp):
       # and copy from it into the input .db file's modifier_dimension
       logged_execute(cnx, "insert into modifier_dimension select * from dfdb.modifier_dimension")
       # and log that we did so
-      logged_execute(cnx, "insert into df_log select datetime(),'insert','modifier_dimension'")
+      logged_execute(cnx, "insert into datafinisher_log select datetime(),'insert','modifier_dimension'")
       cnx.commit()
 
     # tprint is what echoes progress to console
