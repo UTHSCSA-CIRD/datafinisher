@@ -194,7 +194,40 @@ def cleanup(cnx):
     [logged_execute(cnx,"drop index if exists "+ii[0]) for ii in \
       logged_execute(cnx,df_stuff.format('index')).fetchall()]
     
-    
+
+################################################################################
+# Custom class methods                                                         #
+################################################################################
+# returns a dictionary of name:value pairs for an entire section
+# sort of like ConfigParser.defaults() but for any section
+# still with final failover to DEFAULT but now you can use 
+# this output as a vars argument to a get()
+# def section(self,name='unknown'): return dict(self.items(name))
+def subsection(self,name='unknown',sep='_',default='unknown'):
+  # in summary, we take whatever section is named by the `default`
+  # argument, update it with the base-name if any
+  # update it with the actual name, and return that dictionary
+  basedict = dict(self.items(default))
+  if name == default: return basedict
+  topdict = dict(self.items(name))
+  if name.find(sep) < 1 :
+    basedict.update(topdict)
+    return basedict
+  else : basename,suffix = name.split(sep,1)
+  #import pdb; pdb.set_trace()
+  #if 'presuffix' in basedict.keys() and basedict['presuffix'] != '':
+    #setsuffix = True
+  #else: setsuffix = False
+  if basename in self.sections():
+      # use the basename's items and override them with topdict
+      basedict.update(dict(self.items(basename)))
+  basedict.update(topdict)
+  basedict['suffix'] = "_"+suffix
+  #if setsuffix:
+    #basedict['suffix'] = "_"+suffix
+  #else: basedict['presuffix'] = "_"+suffix
+  return basedict
+
 """
 Dynamic SQLifier?
 """

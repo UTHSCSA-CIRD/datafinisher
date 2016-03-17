@@ -156,7 +156,29 @@ def main(cnx,fname,style,dtcp):
     
     # DONE: As per Ticket #19, this was changed so the rules get read 
     # in from ./ruledefs.csv and a df_rules table is created from it
-    create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
+    #create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
+    #
+    # we make the subsection() function declared in df_fn.py a 
+    # method of ConfigParser
+    ConfigParser.ConfigParser.subsection = subsection
+    cnf = ConfigParser.ConfigParser()
+    cnf.read('sql/test.cfg')
+    ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
+    # test table for rules, should be the same as df_rules
+    if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
+      logged_execute(cnx,"""CREATE TABLE df_rules 
+		     (sub_slct_std UNKNOWN_TYPE_STRING,sub_payload UNKNOWN_TYPE_STRING
+		     ,sub_frm_std UNKNOWN_TYPE_STRING,sbwr UNKNOWN_TYPE_STRING
+		     ,sub_grp_std UNKNOWN_TYPE_STRING,presuffix UNKNOWN_TYPE_STRING
+		     ,suffix UNKNOWN_TYPE_STRING,concode UNKNOWN_TYPE_BOOLEAN NOT NULL
+		     ,rule UNKNOWN_TYPE_STRING NOT NULL,grouping INTEGER NOT NULL
+		     ,subgrouping INTEGER NOT NULL,in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
+		     ,criterion UNKNOWN_TYPE_STRING)""");
+      #logged_execute(cnx,"delete from df_rules_test"); cnx.commit();
+      # we read our cnf.subsection()s in...
+      # populate the df_rules_test table to make sure result matches the .csv rules
+      [cnx.execute("insert into df_rules ({0}) values (\" {1} \")".format(
+	",".join(ii.keys()),' "," '.join(ii.values()))) for ii in ruledicts if ii['in_use']=='1']
     tprint("created rule definitions",tt);tt = time.time()
 
     # Read in and run the sql/dd.sql file
@@ -170,7 +192,13 @@ def main(cnx,fname,style,dtcp):
     # once and save it as a tag in the new RULE column
     # TODO: use df_rules_test
     # This is a possible place to use the new dsSel function (see below)
-    [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
+    #[logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
+    #cnx.commit()
+    dd_criteria = [dsSel(ii['rule'],ii['criterion'],"""
+			 update df_dtdict set rule = '{0}'
+			 where rule = 'UNKNOWN_DATA_ELEMENT' and 
+			 """) for ii in ruledicts if ii['rule']!='UNKNOWN_DATA_ELEMENT']
+    [logged_execute(cnx,ii) for ii in set(dd_criteria)]
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
@@ -240,49 +268,7 @@ def main(cnx,fname,style,dtcp):
 	  
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
-    # returns a dictionary of name:value pairs for an entire section
-    # sort of like ConfigParser.defaults() but for any section
-    # still with final failover to DEFAULT but now you can use 
-    # this output as a vars argument to a get()
-    # def section(self,name='unknown'): return dict(self.items(name))
-    def subsection(self,name='unknown',sep='_',default='unknown'):
-      # in summary, we take whatever section is named by the `default`
-      # argument, update it with the base-name if any
-      # update it with the actual name, and return that dictionary
-      basedict = dict(self.items(default))
-      if name == default: return basedict
-      topdict = dict(self.items(name))
-      if name.find(sep) < 1 :
-	basedict.update(topdict)
-	return basedict
-      else : basename,suffix = name.split(sep,1)
-      #import pdb; pdb.set_trace()
-      #if 'presuffix' in basedict.keys() and basedict['presuffix'] != '':
-	#setsuffix = True
-      #else: setsuffix = False
-      if basename in self.sections():
-         # use the basename's items and override them with topdict
-         basedict.update(dict(self.items(basename)))
-      basedict.update(topdict)
-      basedict['suffix'] = "_"+suffix
-      #if setsuffix:
-	#basedict['suffix'] = "_"+suffix
-      #else: basedict['presuffix'] = "_"+suffix
-      return basedict
     
-    # we make subsection a method of the ConfigParser class
-    ConfigParser.ConfigParser.subsection = subsection
-    cnf = ConfigParser.ConfigParser()
-    cnf.read('sql/test.cfg')
-    # test table for rules, should be the same as df_rules
-    logged_execute(cnx,"CREATE TABLE if not exists df_rules_test (sub_slct_std UNKNOWN_TYPE_STRING,sub_payload UNKNOWN_TYPE_STRING,sub_frm_std UNKNOWN_TYPE_STRING,sbwr UNKNOWN_TYPE_STRING,sub_grp_std UNKNOWN_TYPE_STRING,presuffix UNKNOWN_TYPE_STRING,suffix UNKNOWN_TYPE_STRING,concode UNKNOWN_TYPE_BOOLEAN NOT NULL,rule UNKNOWN_TYPE_STRING NOT NULL,grouping INTEGER NOT NULL,subgrouping INTEGER NOT NULL,in_use UNKNOWN_TYPE_BOOLEAN NOT NULL,criterion UNKNOWN_TYPE_STRING)")
-    logged_execute(cnx,"delete from df_rules_test"); cnx.commit();
-    # we read our cnf.subsection()s in...
-    ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
-    # populate the df_rules_test table to make sure result matches the .csv rules
-    [cnx.execute("insert into df_rules_test ("+",".join(ii.keys())+") values (\" "+' "," '.join(ii.values())+" \")") for ii in ruledicts if ii['in_use']=='1']
-
-    pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
