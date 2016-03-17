@@ -168,14 +168,17 @@ def main(cnx,fname,style,dtcp):
     # rather than running the same complicated select statement multiple times 
     # for each rule in df_dtdict lets just run each selection criterion 
     # once and save it as a tag in the new RULE column
+    # TODO: use df_rules_test
     # This is a possible place to use the new dsSel function (see below)
     [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
     # create the create_dynsql table, which may make most of these individually defined tables unnecessary
-    # see if the ugly code hiding behind par['create_dynsql'] can be replaced by more concise dsSel
-    # Or maybe even if df_dynsql table itself can be replaced and we could do it all in one step
+    # see if the ugly code hiding behind par['create_dynsql'] can be replaced by 
+    # more concise dsSel Or maybe even if df_dynsql table itself can be replaced 
+    # and we could do it all in one step
+    # TODO: use df_rules_test
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     
