@@ -10,7 +10,8 @@ from df import dolog
 # useful lists
 # columns that may affect the interpretation of the data
 cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
-cols_patdim = ['birth_date','sex_cd','language_cd','race_cd']
+cols_patdim = ['birth_date','sex_cd','language_cd','race_cd'];
+cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','presuffix','suffix','concode','rule','grouping','subgrouping','in_use','criterion'];
 
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
@@ -261,3 +262,4 @@ def create_ruledef(cnx, filename):
 	cnx.executemany("INSERT INTO df_rules VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);", to_db[1:])
 	cnx.commit()
 	
+# read a config file subsection as specified by a delimited string

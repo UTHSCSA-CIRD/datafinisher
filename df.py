@@ -237,11 +237,49 @@ def main(cnx,fname,style,dtcp):
 	  
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
+    # returns a dictionary of name:value pairs for an entire section
+    # sort of like ConfigParser.defaults() but for any section
+    # still with final failover to DEFAULT but now you can use 
+    # this output as a vars argument to a get()
+    # def section(self,name='unknown'): return dict(self.items(name))
+    def subsection(self,name='unknown',sep='_',default='unknown'):
+      # in summary, we take whatever section is named by the `default`
+      # argument, update it with the base-name if any
+      # update it with the actual name, and return that dictionary
+      basedict = dict(self.items(default))
+      if name == default: return basedict
+      topdict = dict(self.items(name))
+      if name.find(sep) < 1 :
+	basedict.update(topdict)
+	return basedict
+      else : basename,suffix = name.split(sep,1)
+      #import pdb; pdb.set_trace()
+      #if 'presuffix' in basedict.keys() and basedict['presuffix'] != '':
+	#setsuffix = True
+      #else: setsuffix = False
+      if basename in self.sections():
+         # use the basename's items and override them with topdict
+         basedict.update(dict(self.items(basename)))
+      basedict.update(topdict)
+      basedict['suffix'] = "_"+suffix
+      #if setsuffix:
+	#basedict['suffix'] = "_"+suffix
+      #else: basedict['presuffix'] = "_"+suffix
+      return basedict
+    
+    # we make subsection a method of the ConfigParser class
+    ConfigParser.ConfigParser.subsection = subsection
     cnf = ConfigParser.ConfigParser()
     cnf.read('sql/test.cfg')
-    print cnf.sections()
-    pdb.set_trace()
+    # test table for rules, should be the same as df_rules
+    logged_execute(cnx,"CREATE TABLE if not exists df_rules_test (sub_slct_std UNKNOWN_TYPE_STRING,sub_payload UNKNOWN_TYPE_STRING,sub_frm_std UNKNOWN_TYPE_STRING,sbwr UNKNOWN_TYPE_STRING,sub_grp_std UNKNOWN_TYPE_STRING,presuffix UNKNOWN_TYPE_STRING,suffix UNKNOWN_TYPE_STRING,concode UNKNOWN_TYPE_BOOLEAN NOT NULL,rule UNKNOWN_TYPE_STRING NOT NULL,grouping INTEGER NOT NULL,subgrouping INTEGER NOT NULL,in_use UNKNOWN_TYPE_BOOLEAN NOT NULL,criterion UNKNOWN_TYPE_STRING)")
+    logged_execute(cnx,"delete from df_rules_test"); cnx.commit();
+    # we read our cnf.subsection()s in...
+    ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
+    # populate the df_rules_test table to make sure result matches the .csv rules
+    [cnx.execute("insert into df_rules_test ("+",".join(ii.keys())+") values (\" "+' "," '.join(ii.values())+" \")") for ii in ruledicts if ii['in_use']=='1']
 
+    pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
