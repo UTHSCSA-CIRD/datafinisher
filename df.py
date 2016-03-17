@@ -167,13 +167,13 @@ def main(cnx,fname,style,dtcp):
     # test table for rules, should be the same as df_rules
     if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
       logged_execute(cnx,"""CREATE TABLE df_rules 
-		     (sub_slct_std UNKNOWN_TYPE_STRING,sub_payload UNKNOWN_TYPE_STRING
-		     ,sub_frm_std UNKNOWN_TYPE_STRING,sbwr UNKNOWN_TYPE_STRING
-		     ,sub_grp_std UNKNOWN_TYPE_STRING,presuffix UNKNOWN_TYPE_STRING
-		     ,suffix UNKNOWN_TYPE_STRING,concode UNKNOWN_TYPE_BOOLEAN NOT NULL
-		     ,rule UNKNOWN_TYPE_STRING NOT NULL,grouping INTEGER NOT NULL
-		     ,subgrouping INTEGER NOT NULL,in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
-		     ,criterion UNKNOWN_TYPE_STRING)""");
+		     (sub_slct_std UNKNOWN_TYPE_STRING, sub_payload UNKNOWN_TYPE_STRING
+		     , sub_frm_std UNKNOWN_TYPE_STRING, sbwr UNKNOWN_TYPE_STRING
+		     , sub_grp_std UNKNOWN_TYPE_STRING, presuffix UNKNOWN_TYPE_STRING
+		     , suffix UNKNOWN_TYPE_STRING, concode UNKNOWN_TYPE_BOOLEAN NOT NULL
+		     , rule UNKNOWN_TYPE_STRING NOT NULL, grouping INTEGER NOT NULL
+		     , subgrouping INTEGER NOT NULL, in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
+		     , criterion UNKNOWN_TYPE_STRING)""");
       #logged_execute(cnx,"delete from df_rules_test"); cnx.commit();
       # we read our cnf.subsection()s in...
       # populate the df_rules_test table to make sure result matches the .csv rules
@@ -220,6 +220,7 @@ def main(cnx,fname,style,dtcp):
     
     # code for creating all the temporary tables
     # where cmh.db slows down
+    pdb.set_trace()
     [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['maketables']).fetchall()]
     tprint("created all tables described by df_dynsql",tt);tt = time.time()
     
@@ -269,6 +270,7 @@ def main(cnx,fname,style,dtcp):
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
     
+    pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.

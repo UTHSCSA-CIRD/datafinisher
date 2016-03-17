@@ -222,7 +222,10 @@ def subsection(self,name='unknown',sep='_',default='unknown'):
       # use the basename's items and override them with topdict
       basedict.update(dict(self.items(basename)))
   basedict.update(topdict)
-  basedict['suffix'] = "_"+suffix
+  if('grouping' in topdict.keys() and topdict['grouping'] != '1'):
+    basedict['presuffix'] = "_"+suffix
+  else:
+    basedict['suffix'] = "_"+suffix
   #if setsuffix:
     #basedict['suffix'] = "_"+suffix
   #else: basedict['presuffix'] = "_"+suffix
