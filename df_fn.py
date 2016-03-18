@@ -10,13 +10,41 @@ from df import dolog
 # useful lists
 # columns that may affect the interpretation of the data
 cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
-cols_patdim = ['birth_date','sex_cd','language_cd','race_cd']
+cols_patdim = ['birth_date','sex_cd','language_cd','race_cd'];
+cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','presuffix','suffix','concode','rule','grouping','subgrouping','in_use','criterion'];
 
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
 ###############################################################################
 
-# okay, this actually works
+# aggregator useful for generating SQL
+class sqlaggregate:
+  def __init__(self):
+    self.lvals = []; self.rvals = []
+    self.lfuns = []; self.rfuns = []
+    self.ops = []; self.joiner = ','
+  def step(self,lval,rval,lfun,op,rfun,joiner):
+    if lval in ['','None',None]: lval = ' '
+    if rval in ['','None',None]: rval = ' '
+    if lfun in ['','None',None]: lfun = ' {0} '
+    if rfun in ['','None',None]: rfun = ' {0} '
+    if op in ['','None',None]: op = ' '
+    if joiner in ['','None',None]: self.joiner = ','
+    else: self.joiner = joiner
+    self.lvals.append(lval)
+    self.rvals.append(rval)
+    self.lfuns.append(lfun)
+    self.rfuns.append(rfun)
+    self.ops.append(op)
+  def finalize(self):
+    # turn into tuples
+    rawvals = zip(self.lfuns,self.lvals,self.ops,self.rfuns,self.rvals);
+    # payload
+    out = [str(xx[0]).format(str(xx[1]))+\
+      str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals]
+    return self.joiner.join(out)
+
+# aggregation for diagnoses and similar data elements
 class diaggregate:
   def __init__(self):
     self.cons = {}
@@ -85,6 +113,14 @@ class debugaggregate:
     self.entries.append(",".join(['"'+ii+'":"'+str(vars()[ii])+'"' for ii in ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf'] if vars()[ii] not in ['@',None,'','None']]))
   def finalize(self):
     return "{"+"},{".join(self.entries)+"}"
+
+# trim and concatenate together strings, e.g. to make column names 
+def trimcat(*args): return ''.join([ii.strip() for ii in args])
+  
+# from the template in the first argument ({0},{1}, etc.)
+# and the replacement variables in the second, put together a string
+# useful for generating SQL 
+def pyformat(string,*args): return string.format(*args)
 
 # this is to register a SQLite function for pulling out matching substrings 
 # (if found) and otherwise returning the original string. Useful for extracting 
@@ -193,7 +229,43 @@ def cleanup(cnx):
     [logged_execute(cnx,"drop index if exists "+ii[0]) for ii in \
       logged_execute(cnx,df_stuff.format('index')).fetchall()]
     
-    
+
+################################################################################
+# Custom class methods                                                         #
+################################################################################
+# returns a dictionary of name:value pairs for an entire section
+# sort of like ConfigParser.defaults() but for any section
+# still with final failover to DEFAULT but now you can use 
+# this output as a vars argument to a get()
+# def section(self,name='unknown'): return dict(self.items(name))
+def subsection(self,name='unknown',sep='_',default='unknown'):
+  # in summary, we take whatever section is named by the `default`
+  # argument, update it with the base-name if any
+  # update it with the actual name, and return that dictionary
+  basedict = dict(self.items(default))
+  if name == default: return basedict
+  topdict = dict(self.items(name))
+  if name.find(sep) < 1 :
+    basedict.update(topdict)
+    return basedict
+  else : basename,suffix = name.split(sep,1)
+  #import pdb; pdb.set_trace()
+  #if 'presuffix' in basedict.keys() and basedict['presuffix'] != '':
+    #setsuffix = True
+  #else: setsuffix = False
+  if basename in self.sections():
+      # use the basename's items and override them with topdict
+      basedict.update(dict(self.items(basename)))
+  basedict.update(topdict)
+  if('grouping' in topdict.keys() and topdict['grouping'] != '1'):
+    basedict['presuffix'] = "_"+suffix
+  else:
+    basedict['suffix'] = "_"+suffix
+  #if setsuffix:
+    #basedict['suffix'] = "_"+suffix
+  #else: basedict['presuffix'] = "_"+suffix
+  return basedict
+
 """
 Dynamic SQLifier?
 """
@@ -261,3 +333,4 @@ def create_ruledef(cnx, filename):
 	cnx.executemany("INSERT INTO df_rules VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);", to_db[1:])
 	cnx.commit()
 	
+# read a config file subsection as specified by a delimited string

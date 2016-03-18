@@ -43,12 +43,22 @@ def main(cnx,fname,style,dtcp):
     cnx.create_function("shw",2,shortenwords)
     # shorten words by squeezing out certain characters
     cnx.create_function("drl",1,dropletters)
+    # pythonish string formatting with replacement
+    cnx.create_function("pyf",5,pyformat)
+    cnx.create_function("pyf",4,pyformat)
+    cnx.create_function("pyf",3,pyformat)
+    cnx.create_function("pyf",2,pyformat)
+    # trim and concatenate arguments
+    cnx.create_function("tc",4,trimcat)
+    cnx.create_function("tc",3,trimcat)
+    cnx.create_function("tc",2,trimcat)
     # string aggregation specific for diagnoses and codes that behave like them
     cnx.create_aggregate("dgr",2,diaggregate)
     # string aggregation for user-specified fields
     cnx.create_aggregate("igr",11,infoaggregate)
     # the kitchen-sink aggregator that tokenizes and concatenates everything
     cnx.create_aggregate("xgr",11,debugaggregate)
+    cnx.create_aggregate("sqgr",6,sqlaggregate)
     
     # TODO: this is a hardcoded dependency on LOINC and ICD9 strings in paths! 
     #       This is not an i2b2-ism, it's an EPICism, and possibly a HERONism
@@ -156,7 +166,29 @@ def main(cnx,fname,style,dtcp):
     
     # DONE: As per Ticket #19, this was changed so the rules get read 
     # in from ./ruledefs.csv and a df_rules table is created from it
-    create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
+    #create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
+    #
+    # we make the subsection() function declared in df_fn.py a 
+    # method of ConfigParser
+    ConfigParser.ConfigParser.subsection = subsection
+    cnf = ConfigParser.ConfigParser()
+    cnf.read('sql/test.cfg')
+    ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
+    # replacement for df_rules
+    if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
+      logged_execute(cnx,"""CREATE TABLE df_rules 
+		     (sub_slct_std UNKNOWN_TYPE_STRING, sub_payload UNKNOWN_TYPE_STRING
+		     , sub_frm_std UNKNOWN_TYPE_STRING, sbwr UNKNOWN_TYPE_STRING
+		     , sub_grp_std UNKNOWN_TYPE_STRING, presuffix UNKNOWN_TYPE_STRING
+		     , suffix UNKNOWN_TYPE_STRING, concode UNKNOWN_TYPE_BOOLEAN NOT NULL
+		     , rule UNKNOWN_TYPE_STRING NOT NULL, grouping INTEGER NOT NULL
+		     , subgrouping INTEGER NOT NULL, in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
+		     , criterion UNKNOWN_TYPE_STRING)""");
+      #logged_execute(cnx,"delete from df_rules"); cnx.commit();
+      # we read our cnf.subsection()s in...
+      # populate the df_rules table to make sure result matches the .csv rules
+      [cnx.execute("insert into df_rules ({0}) values (\" {1} \")".format(
+	",".join(ii.keys()),' "," '.join(ii.values()))) for ii in ruledicts if ii['in_use']=='1']
     tprint("created rule definitions",tt);tt = time.time()
 
     # Read in and run the sql/dd.sql file
@@ -168,16 +200,44 @@ def main(cnx,fname,style,dtcp):
     # rather than running the same complicated select statement multiple times 
     # for each rule in df_dtdict lets just run each selection criterion 
     # once and save it as a tag in the new RULE column
+    # DONE: use df_rules
     # This is a possible place to use the new dsSel function (see below)
-    [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
+    #[logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
+    #cnx.commit()
+    dd_criteria = [dsSel(ii['rule'],ii['criterion'],"""
+			 update df_dtdict set rule = '{0}'
+			 where rule = 'UNKNOWN_DATA_ELEMENT' and 
+			 """) for ii in ruledicts if ii['rule']!='UNKNOWN_DATA_ELEMENT']
+    [logged_execute(cnx,ii) for ii in set(dd_criteria)]
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
     # create the create_dynsql table, which may make most of these individually defined tables unnecessary
-    # see if the ugly code hiding behind par['create_dynsql'] can be replaced by more concise dsSel
-    # Or maybe even if df_dynsql table itself can be replaced and we could do it all in one step
+    # see if the ugly code hiding behind par['create_dynsql'] can be replaced by 
+    # more concise dsSel Or maybe even if df_dynsql table itself can be replaced 
+    # and we could do it all in one step
+    # DONE: use df_rules
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
+    
+    # not sure it's an improvement, but here is using the sqgr function nested in itself 
+    # to create the equivalent of the df_dynsql table 
+    #(note the kludgy replace and || stuff, needs to be done better)
+    # the body of the query
+    foo = cnx.execute("select sqgr(lv,rv,lf,' ',rf,' ') from (select sub_slct_std||sqgr(trim(colcd)||trim(presuffix)||trim(suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr lf,colcd lv,replace(sub_grp_std,'jcode',0) rf,trim(colcd)||trim(presuffix) rv from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping)").fetchall()
+    # or maybe even
+    foo1 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr||replace(sub_grp_std,'jcode',1) ,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
+    # doesn't currently work, but will when we replace the {} stuff permanently
+    """
+    foo2 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',sub_payload,'','','')||sub_frm_std||sbwr||sub_grp_std,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
+    """
+    # the select part of the query
+    bar = cnx.execute("select group_concat(val) from (select distinct trim(colcd)||trim(presuffix)||trim(suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()
+    # or maybe even
+    bar1=cnx.execute("select group_concat(val) from (select distinct tc(colcd,presuffix,suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()[0][0]
+    # putting them together...
+    "select patient_num,start_date, "+bar[0][0]+" from df_joinme "+foo[0][0]
+
     
     # each row in create_dynsql will correspond to one column in the output
     # here we break create_dynsql into more manageable chunks
@@ -237,7 +297,8 @@ def main(cnx,fname,style,dtcp):
 	  
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
-
+    
+    pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
