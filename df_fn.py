@@ -17,7 +17,34 @@ cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','p
 # Functions and methods to use within SQLite                                  #
 ###############################################################################
 
-# okay, this actually works
+# aggregator useful for generating SQL
+class sqlaggregate:
+  def __init__(self):
+    self.lvals = []; self.rvals = []
+    self.lfuns = []; self.rfuns = []
+    self.ops = []; self.joiner = ','
+  def step(self,lval,rval,lfun,op,rfun,joiner):
+    if lval in ['','None',None]: lval = ' '
+    if rval in ['','None',None]: rval = ' '
+    if lfun in ['','None',None]: lfun = ' {0} '
+    if rfun in ['','None',None]: rfun = ' {0} '
+    if op in ['','None',None]: op = ' '
+    if joiner in ['','None',None]: self.joiner = ','
+    else: self.joiner = joiner
+    self.lvals.append(lval)
+    self.rvals.append(rval)
+    self.lfuns.append(lfun)
+    self.rfuns.append(rfun)
+    self.ops.append(op)
+  def finalize(self):
+    # turn into tuples
+    rawvals = zip(self.lfuns,self.lvals,self.ops,self.rfuns,self.rvals);
+    # payload
+    out = [str(xx[0]).format(str(xx[1]))+\
+      str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals]
+    return self.joiner.join(out)
+
+# aggregation for diagnoses and similar data elements
 class diaggregate:
   def __init__(self):
     self.cons = {}
@@ -86,6 +113,14 @@ class debugaggregate:
     self.entries.append(",".join(['"'+ii+'":"'+str(vars()[ii])+'"' for ii in ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf'] if vars()[ii] not in ['@',None,'','None']]))
   def finalize(self):
     return "{"+"},{".join(self.entries)+"}"
+
+# trim and concatenate together strings, e.g. to make column names 
+def trimcat(*args): return ''.join([ii.strip() for ii in args])
+  
+# from the template in the first argument ({0},{1}, etc.)
+# and the replacement variables in the second, put together a string
+# useful for generating SQL 
+def pyformat(string,*args): return string.format(*args)
 
 # this is to register a SQLite function for pulling out matching substrings 
 # (if found) and otherwise returning the original string. Useful for extracting 

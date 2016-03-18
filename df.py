@@ -43,12 +43,22 @@ def main(cnx,fname,style,dtcp):
     cnx.create_function("shw",2,shortenwords)
     # shorten words by squeezing out certain characters
     cnx.create_function("drl",1,dropletters)
+    # pythonish string formatting with replacement
+    cnx.create_function("pyf",5,pyformat)
+    cnx.create_function("pyf",4,pyformat)
+    cnx.create_function("pyf",3,pyformat)
+    cnx.create_function("pyf",2,pyformat)
+    # trim and concatenate arguments
+    cnx.create_function("tc",4,trimcat)
+    cnx.create_function("tc",3,trimcat)
+    cnx.create_function("tc",2,trimcat)
     # string aggregation specific for diagnoses and codes that behave like them
     cnx.create_aggregate("dgr",2,diaggregate)
     # string aggregation for user-specified fields
     cnx.create_aggregate("igr",11,infoaggregate)
     # the kitchen-sink aggregator that tokenizes and concatenates everything
     cnx.create_aggregate("xgr",11,debugaggregate)
+    cnx.create_aggregate("sqgr",6,sqlaggregate)
     
     # TODO: this is a hardcoded dependency on LOINC and ICD9 strings in paths! 
     #       This is not an i2b2-ism, it's an EPICism, and possibly a HERONism
@@ -210,6 +220,25 @@ def main(cnx,fname,style,dtcp):
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     
+    # not sure it's an improvement, but here is using the sqgr function nested in itself 
+    # to create the equivalent of the df_dynsql table 
+    #(note the kludgy replace and || stuff, needs to be done better)
+    # the body of the query
+    foo = cnx.execute("select sqgr(lv,rv,lf,' ',rf,' ') from (select sub_slct_std||sqgr(trim(colcd)||trim(presuffix)||trim(suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr lf,colcd lv,replace(sub_grp_std,'jcode',0) rf,trim(colcd)||trim(presuffix) rv from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping)").fetchall()
+    # or maybe even
+    foo1 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr||replace(sub_grp_std,'jcode',1) ,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
+    # doesn't currently work, but will when we replace the {} stuff permanently
+    """
+    foo2 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',sub_payload,'','','')||sub_frm_std||sbwr||sub_grp_std,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
+    """
+    # the select part of the query
+    bar = cnx.execute("select group_concat(val) from (select distinct trim(colcd)||trim(presuffix)||trim(suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()
+    # or maybe even
+    bar1=cnx.execute("select group_concat(val) from (select distinct tc(colcd,presuffix,suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()[0][0]
+    # putting them together...
+    "select patient_num,start_date, "+bar[0][0]+" from df_joinme "+foo[0][0]
+
+    
     # each row in create_dynsql will correspond to one column in the output
     # here we break create_dynsql into more manageable chunks
     # again, if generated using dsSel, we might be able to manage those chunks script-side
@@ -269,7 +298,7 @@ def main(cnx,fname,style,dtcp):
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
     
-    #pdb.set_trace()
+    pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
