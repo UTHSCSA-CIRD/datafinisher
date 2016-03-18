@@ -164,7 +164,7 @@ def main(cnx,fname,style,dtcp):
     cnf = ConfigParser.ConfigParser()
     cnf.read('sql/test.cfg')
     ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
-    # test table for rules, should be the same as df_rules
+    # replacement for df_rules
     if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
       logged_execute(cnx,"""CREATE TABLE df_rules 
 		     (sub_slct_std UNKNOWN_TYPE_STRING, sub_payload UNKNOWN_TYPE_STRING
@@ -174,9 +174,9 @@ def main(cnx,fname,style,dtcp):
 		     , rule UNKNOWN_TYPE_STRING NOT NULL, grouping INTEGER NOT NULL
 		     , subgrouping INTEGER NOT NULL, in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
 		     , criterion UNKNOWN_TYPE_STRING)""");
-      #logged_execute(cnx,"delete from df_rules_test"); cnx.commit();
+      #logged_execute(cnx,"delete from df_rules"); cnx.commit();
       # we read our cnf.subsection()s in...
-      # populate the df_rules_test table to make sure result matches the .csv rules
+      # populate the df_rules table to make sure result matches the .csv rules
       [cnx.execute("insert into df_rules ({0}) values (\" {1} \")".format(
 	",".join(ii.keys()),' "," '.join(ii.values()))) for ii in ruledicts if ii['in_use']=='1']
     tprint("created rule definitions",tt);tt = time.time()
@@ -190,7 +190,7 @@ def main(cnx,fname,style,dtcp):
     # rather than running the same complicated select statement multiple times 
     # for each rule in df_dtdict lets just run each selection criterion 
     # once and save it as a tag in the new RULE column
-    # TODO: use df_rules_test
+    # DONE: use df_rules
     # This is a possible place to use the new dsSel function (see below)
     #[logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['dd_criteria']).fetchall()]
     #cnx.commit()
@@ -206,7 +206,7 @@ def main(cnx,fname,style,dtcp):
     # see if the ugly code hiding behind par['create_dynsql'] can be replaced by 
     # more concise dsSel Or maybe even if df_dynsql table itself can be replaced 
     # and we could do it all in one step
-    # TODO: use df_rules_test
+    # DONE: use df_rules
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     
@@ -220,7 +220,6 @@ def main(cnx,fname,style,dtcp):
     
     # code for creating all the temporary tables
     # where cmh.db slows down
-    pdb.set_trace()
     [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['maketables']).fetchall()]
     tprint("created all tables described by df_dynsql",tt);tt = time.time()
     
@@ -270,7 +269,7 @@ def main(cnx,fname,style,dtcp):
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
     
-    pdb.set_trace()
+    #pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
