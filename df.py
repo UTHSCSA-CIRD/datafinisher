@@ -4,7 +4,7 @@ usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] 
     
 """
 
-import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
+import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb,doctest
 from os.path import dirname
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
@@ -170,6 +170,9 @@ def main(cnx,fname,style,dtcp):
     #
     # we make the subsection() function declared in df_fn.py a 
     # method of ConfigParser
+    ConfigParser.ConfigParser.rxp = rxp
+    ConfigParser.ConfigParser.shortcuts = shortcuts
+    ConfigParser.ConfigParser.rxget = rxget
     ConfigParser.ConfigParser.subsection = subsection
     cnf = ConfigParser.ConfigParser()
     cnf.read('sql/test.cfg')
@@ -328,6 +331,3 @@ if __name__ == '__main__':
       cleanup(con)
     else:
       main(con,csvfile,args.style,dtcp)
-
-
-

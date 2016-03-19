@@ -7,11 +7,18 @@ if cwd == '': cwd = '.'
 # not the user wants verbose logging
 from df import dolog
 
-# useful lists
+# useful data structures
 # columns that may affect the interpretation of the data
 cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
 cols_patdim = ['birth_date','sex_cd','language_cd','race_cd'];
 cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','presuffix','suffix','concode','rule','grouping','subgrouping','in_use','criterion'];
+
+# to be added as an attribute to ConfigParser
+shortcuts = {'SELPATIENT': 'left join (select pn,',
+	     'SELPATIENTDATE': 'left join (select pn,sd,',
+	     'SELDISTPATIENTDATE': 'left join (select distinct pn,sd,',
+	     'GRPJPATIENT': ' group by pn) {jcode} on {jcode}.pn = patient_num'}
+rxp = re.compile(r"\$\{(?:(?P<section>[^:]+):)?(?P<key>[^}]+)\}")
 
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
@@ -238,10 +245,13 @@ def cleanup(cnx):
 # still with final failover to DEFAULT but now you can use 
 # this output as a vars argument to a get()
 # def section(self,name='unknown'): return dict(self.items(name))
+
 def subsection(self,name='unknown',sep='_',default='unknown'):
-  # in summary, we take whatever section is named by the `default`
-  # argument, update it with the base-name if any
-  # update it with the actual name, and return that dictionary
+  """
+  in summary, we take whatever section is named by the `default`
+  argument, update it with the base-name if any
+  update it with the actual name, and return that dictionary
+  """
   basedict = dict(self.items(default))
   if name == default: return basedict
   topdict = dict(self.items(name))
@@ -265,6 +275,46 @@ def subsection(self,name='unknown',sep='_',default='unknown'):
     #basedict['suffix'] = "_"+suffix
   #else: basedict['presuffix'] = "_"+suffix
   return basedict
+
+def rxget(self,value,recur=3):
+  """
+  Give the standard Python 2.7 ConfigParser the ability to interpret 3.2 style
+  interpolations from foreign sections of the config file such as described in
+  http://stackoverflow.com/questions/7605124/
+  This method returns a string.
+  
+  value -- A string that may contain 0 or more interpolated references to
+	   other sections of the config file.
+  recur -- An integer counter for limiting how deeply rxget will recurse.When 
+           it reaches 0, rxget() returns the then value regardless of whether 
+           or not it has been fully resolved (so, call it with a higher value 
+           if you have complex config files.
+           
+  rxget() relies on the existance of two attributes in the same class of which
+  it is a method: self.shortcuts is a dictionary and  self.rxp is a compiled 
+  regular expression
+  """
+  #import pdb; pdb.set_trace()
+  #import sys; fr = sys._getframe(1)
+  #print fr, "VALUE:", value
+  if recur == 0: return(value)
+  recur -= 1
+  #print fr, "PROCEEDING"
+  if value in self.shortcuts.keys():
+    #print fr, "FOUND IN KEYS"
+    return self.rxget(self.shortcuts[value],recur)
+  hits = self.rxp.findall(value)
+  if len(hits) == 0:
+    #print fr, "NO HITS"
+    return value
+  #print fr, "HITS:", hits
+  replacements = [self.rxget(self.get(ii[0],ii[1]),recur) for ii in hits]
+  #print fr, "REPLACEMENTS:", replacements, "VALUE:", value
+  for ii in replacements: 
+    value = self.rxp.sub(ii,value,count=1)
+    #print fr, "VALUE:", value
+  #print "FINAL VALUE:", value
+  return(value)
 
 """
 Dynamic SQLifier?
