@@ -252,28 +252,27 @@ def subsection(self,name='unknown',sep='_',default='unknown'):
   argument, update it with the base-name if any
   update it with the actual name, and return that dictionary
   """
-  basedict = dict(self.items(default))
-  if name == default: return basedict
-  topdict = dict(self.items(name))
-  if name.find(sep) < 1 :
-    basedict.update(topdict)
-    return basedict
-  else : basename,suffix = name.split(sep,1)
-  #import pdb; pdb.set_trace()
-  #if 'presuffix' in basedict.keys() and basedict['presuffix'] != '':
-    #setsuffix = True
-  #else: setsuffix = False
-  if basename in self.sections():
-      # use the basename's items and override them with topdict
-      basedict.update(dict(self.items(basename)))
-  basedict.update(topdict)
-  if('grouping' in topdict.keys() and topdict['grouping'] != '1'):
-    basedict['presuffix'] = "_"+suffix
-  else:
-    basedict['suffix'] = "_"+suffix
-  #if setsuffix:
-    #basedict['suffix'] = "_"+suffix
-  #else: basedict['presuffix'] = "_"+suffix
+  basedict = dict(self.items(default),cols_rules=cols_rules)
+  if name != default:
+    topdict = dict(self.items(name))
+    #if name.find(sep) < 1 :.
+      #basedict.update(topdict)
+      #return basedict
+    #else : basename,suffix = name.split(sep,1)
+    if name.find(sep) > 0 :
+      basename,suffix = name.split(sep,1)
+      if basename in self.sections():
+        basedict.update(dict(self.items(basename)))
+	basedict.update(topdict)
+      if('grouping' in topdict.keys() and topdict['grouping'] != '1'):
+	basedict['presuffix'] = "_"+suffix
+      else:
+	basedict['suffix'] = "_"+suffix
+    else :
+      basedict.update(topdict)
+  import pdb; pdb.set_trace();
+  for ii in set(cols_rules)-set(basedict.keys()): basedict[ii] = ''
+  #basedict.update(dict([(ii,'') for ii in cols_rules if ii not in basedict.keys()]))
   return basedict
 
 def rxget(self,value,recur=3):
@@ -294,31 +293,22 @@ def rxget(self,value,recur=3):
   it is a method: self.shortcuts is a dictionary and  self.rxp is a compiled 
   regular expression
   """
-  #import pdb; pdb.set_trace()
-  #import sys; fr = sys._getframe(1)
-  #print fr, "VALUE:", value
   if recur == 0: return(value)
   recur -= 1
-  #print fr, "PROCEEDING"
   if value in self.shortcuts.keys():
-    #print fr, "FOUND IN KEYS"
     return self.rxget(self.shortcuts[value],recur)
   hits = self.rxp.findall(value)
   if len(hits) == 0:
-    #print fr, "NO HITS"
     return value
-  #print fr, "HITS:", hits
   replacements = [self.rxget(self.get(ii[0],ii[1]),recur) for ii in hits]
-  #print fr, "REPLACEMENTS:", replacements, "VALUE:", value
   for ii in replacements: 
     value = self.rxp.sub(ii,value,count=1)
-    #print fr, "VALUE:", value
-  #print "FINAL VALUE:", value
   return(value)
 
-"""
-Dynamic SQLifier?
-"""
+################################################################################
+# Dynamic SQLifier?                                                            #
+################################################################################
+
 # should be easy to turn into aggregator UDF: just collect the args, and run ds* at the end
 
 # the core function
