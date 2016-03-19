@@ -178,7 +178,6 @@ def main(cnx,fname,style,dtcp):
     cnf.read('sql/test.cfg')
     ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
     # replacement for df_rules
-    pdb.set_trace()
     if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
       logged_execute(cnx,"""CREATE TABLE df_rules 
 		     (sub_slct_std UNKNOWN_TYPE_STRING, sub_payload UNKNOWN_TYPE_STRING

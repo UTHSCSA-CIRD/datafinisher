@@ -246,23 +246,22 @@ def cleanup(cnx):
 # this output as a vars argument to a get()
 # def section(self,name='unknown'): return dict(self.items(name))
 
-def subsection(self,name='unknown',sep='_',default='unknown'):
+def subsection(self,name='unknown',sep='_',default='unknown',cols_rules=cols_rules):
   """
   in summary, we take whatever section is named by the `default`
   argument, update it with the base-name if any
   update it with the actual name, and return that dictionary
   """
-  basedict = dict(self.items(default),cols_rules=cols_rules)
+  basedict = dict([(ii,self.rxget(self.get(default,ii))) for ii 
+		   in set(self.options(default))&set(cols_rules)])
   if name != default:
-    topdict = dict(self.items(name))
-    #if name.find(sep) < 1 :.
-      #basedict.update(topdict)
-      #return basedict
-    #else : basename,suffix = name.split(sep,1)
+    topdict = dict([(ii,self.rxget(self.get(name,ii))) for ii 
+		   in set(self.options(name))&set(cols_rules)])
     if name.find(sep) > 0 :
       basename,suffix = name.split(sep,1)
       if basename in self.sections():
-        basedict.update(dict(self.items(basename)))
+        basedict.update([(ii,self.rxget(self.get(basename,ii))) for ii 
+		   in set(self.options(basename))&set(cols_rules)])
 	basedict.update(topdict)
       if('grouping' in topdict.keys() and topdict['grouping'] != '1'):
 	basedict['presuffix'] = "_"+suffix
@@ -270,9 +269,7 @@ def subsection(self,name='unknown',sep='_',default='unknown'):
 	basedict['suffix'] = "_"+suffix
     else :
       basedict.update(topdict)
-  import pdb; pdb.set_trace();
-  for ii in set(cols_rules)-set(basedict.keys()): basedict[ii] = ''
-  #basedict.update(dict([(ii,'') for ii in cols_rules if ii not in basedict.keys()]))
+  basedict.update(dict([(ii,'') for ii in cols_rules if ii not in basedict.keys()]))
   return basedict
 
 def rxget(self,value,recur=3):
