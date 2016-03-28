@@ -1,9 +1,9 @@
 # datafinisher
-A script to post-process DataBuilder output into a single analyzable, denormalized table or spreadsheet. I.e. one row per patient-day, one column for each data element that will be treated as a separate variable during statistical analysis (with some accompanying columns for units, modifiers, various flags/comments). Uses lots of dynamic SQL, but all of it within sqlite3
+A script to post-process DataBuilder output into a single analyzable, denormalized table or spreadsheet. I.e. one row per patient-day, one column for each data element that will be treated as a separate variable during statistical analysis (with some accompanying columns for units, modifiers, various flags/comments). Datafinisher utilizes sqlite3 and python to generate dynamic sql based on the config file in the sql folder. 
 
-Note: This code does not require require connections to any external database or any other service. It runs entirely upon the files you supply to it. 
+Note: This code does not require connections to any external database or any other service. It runs entirely upon the files you supply to it. 
 
-Note: This code modifies the original databuilder .db file, but only adds tables, doesn't modify existing ones with the exception of empty tables.
+Note: This code modifies the original databuilder .db file. If your modifier dimension table is empty it will fill it, otherwise datafinisher only creates new tables, does not modify existing ones. 
 
 <code>
     usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] dbfile
@@ -25,11 +25,11 @@ Note: This code modifies the original databuilder .db file, but only adds tables
 
 Here are the functional parts:
 
-* **df.py**                The part you run
-* **df_fn.py**                Declarations of functions and other stuff used by df.py
-* **ruledefs.csv**            Customizable rules file
-* **sql/**                    SQL scripts and data used by df
- * **sql/datafinisher.db**     A SQLite db with some lookup tables, at the moment it contains only MODIFIER_DIMENSION (used only if the one in the input file is empty)
- * **sql/dd.sql**              A script for creating the DATA_DICTIONARY table
- * **sql/df.cfg**              The config file, which includes many snippets of SQL that are called from various places in df.py
+* **df.py**                	The part you run
+* **df_fn.py**                	Declarations of functions and other stuff used by df.py
+* **sql/**                    	SQL scripts and data used by df
+ * **sql/datafinisher.db**     	A SQLite db with some lookup tables, at the moment it contains only MODIFIER_DIMENSION (used only if the one in the input file is empty)
+ * **sql/dd.sql**              	A script for creating the DATA_DICTIONARY table
+ * **sql/df.cfg**              	An SQL file, which includes many snippets of SQL that are called from various places in df.py
+ * **sql/test.cfg		A configuration file which allows the user to configure databuilder to the needs of their site. 
 
