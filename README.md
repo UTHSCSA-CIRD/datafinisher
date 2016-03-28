@@ -5,13 +5,8 @@ Note: This code does not require require connections to any external database or
 
 Note: This code modifies the original databuilder .db file, but only adds tables, doesn't modify existing ones with the exception of empty tables.
 
-Test of comments below. On the web page the next thing you should see after this line is the usage for df.py
-
-[comment]: <> (Test comment 01)
-[//]: <> (Test comment 02)
 [//]: # (Test comment 03)
 <!-- Test comment 04 -->
-/* Test comment 05 */
 
 <code>
     usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] dbfile
