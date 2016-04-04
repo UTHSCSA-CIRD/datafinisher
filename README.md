@@ -5,6 +5,9 @@ Note: This code does not require connections to any external database or any oth
 
 Note: This code modifies the original databuilder .db file. If your modifier dimension table is empty it will fill it, otherwise datafinisher only creates new tables, does not modify existing ones. 
 
+[//]: # (Test comment 03)
+<!-- Test comment 04 -->
+
 <code>
     usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] dbfile
   

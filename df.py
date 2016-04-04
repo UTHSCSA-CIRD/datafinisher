@@ -44,6 +44,8 @@ def main(cnx,fname,style,dtcp):
     # shorten words by squeezing out certain characters
     cnx.create_function("drl",1,dropletters)
     # pythonish string formatting with replacement
+    cnx.create_function("pyf",7,pyformat)
+    cnx.create_function("pyf",6,pyformat)
     cnx.create_function("pyf",5,pyformat)
     cnx.create_function("pyf",4,pyformat)
     cnx.create_function("pyf",3,pyformat)
@@ -176,7 +178,7 @@ def main(cnx,fname,style,dtcp):
     ConfigParser.ConfigParser.subsection = subsection
     cnf = ConfigParser.ConfigParser()
     cnf.read('sql/test.cfg')
-    ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
+    ruledicts = [cnf.subsection(ii) for ii in cnf.sections() if ii['in_use']=='1']
     # replacement for df_rules
     if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
       logged_execute(cnx,"""CREATE TABLE df_rules 
@@ -223,6 +225,20 @@ def main(cnx,fname,style,dtcp):
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     
+    
+    """ 
+    Here is a dump of ongoing experimentation to more directly generate df_dynsql equivalent
+    
+    ruledicts2 = [{'start':ii['sub_slct_std'],'payload':ii['sub_payload'].replace('ccode','0}{1}{2'),'end': ' '.join([ii['sub_frm_std'],ii['sbwr'],ii['sub_grp_std']]).replace('jcode','0}{1').replace('cid','3').replace('{concept_cd}','\'{4}\''),'presuffix':ii['presuffix'],'suffix':ii['suffix'],'concode':ii['concode'],'rule':ii['rule'],'grouping':ii['grouping'],'subgrouping':ii['subgrouping'],'criterion':ii['criterion']} for ii in ruledicts if ii['in_use']=='1']
+    Actually, also need to replace the direct use of {concept_cd} with {5} manually in df_rules2
+
+    cnx.execute("delete from df_rules2");cnx.commit()
+    for ii in ruledicts2: cnx.execute("insert into df_rules2 ({0}) values (\"{1}\")".format(",".join(ii.keys()),'","'.join(ii.values())))
+    cnx.commit()
+    cnx.execute("select distinct start,pyf(payload,colcd,presuffix,suffix,cid,'_'||replace(cpath,'-','_'),cpath),pyf(end,colcd,presuffix,suffix,cid,'_'||replace(cpath,'-','_'),cpath),pyf(' from df_rules2 join df_dtdict on df_rules2.rule = df_dtdict.rule join df_codeid on id = cid order by cid,grouping,subgrouping").fetchall()
+    
+
+    """
     # not sure it's an improvement, but here is using the sqgr function nested in itself 
     # to create the equivalent of the df_dynsql table 
     #(note the kludgy replace and || stuff, needs to be done better)
