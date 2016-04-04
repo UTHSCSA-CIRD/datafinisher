@@ -1,7 +1,7 @@
 digraph df {
 subgraph cluster_db {label=DataBuilder; color=blue; node [shape=rectangle]; OBSERVATION_FACT; CONCEPT_DIMENSION; PATIENT_DIMENSION; VARIABLE; }
 subgraph cluster_df {label=DataFinisher; style=invis; DF_JOINME; DF_CODEID; DF_OBSFACT; DF_DYNSQL; DF_DTDICT; FULLOUTPUT2; FULLOUTPUT;}
-DF_RULES_FILE [label="ruledefs.csv",shape=Msquare];
+DF_RULES_FILE [label="ruledefs.cfg",shape=Msquare];
 DF_RULES_FILE -> DF_RULES;
 OBSERVATION_FACT -> {DF_OBSFACT DF_JOINME}; 
 VARIABLE -> {DF_CODEID DF_DTDICT}; 
