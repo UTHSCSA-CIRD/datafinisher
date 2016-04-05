@@ -220,6 +220,7 @@ def main(cnx,fname,style,dtcp):
     # more concise dsSel Or maybe even if df_dynsql table itself can be replaced 
     # and we could do it all in one step
     # DONE: use df_rules
+    
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
     
@@ -256,6 +257,7 @@ def main(cnx,fname,style,dtcp):
     tprint("created all tables described by df_dynsql",tt);tt = time.time()
     
     # code for creating what will eventually replace the fulloutput table
+    
     logged_execute(cnx, logged_execute(cnx, par['fulloutput2']).fetchone()[0])
     tprint("created fulloutput2 table",tt);tt = time.time()
     
