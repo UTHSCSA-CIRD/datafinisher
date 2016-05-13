@@ -1,4 +1,4 @@
-import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
+import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb,math
 from os.path import dirname
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
@@ -271,6 +271,17 @@ Expands a list xx to length nn by repeating it, in the same style that R
 normalizes the lengths of vectors
 """
 def toLen(xx,nn): return (xx*int(1+math.ceil(nn/len(xx))))[:nn]
+
+"""
+Example code for how to align a list of lists of initially unequal lengths
+foo=[range(1,6),range(2,9), range(3,6), range(4,5),range(2,7),range(3,10)]
+bar = zip(*[toLen(ii,ml) for ii in foo])
+from collections import namedtuple
+rr = namedtuple('xx',['A','B','C','D','E','F'])
+# now imagine if instead of a string we iterated over bar 
+# substituting into an XML template each time
+["xxx a={A} b={B} c={C} d={D} e={E} f={F}".format(**rr(*ii)._asdict()) for ii in bar]
+"""
 
 """
 Dynamic SQLifier?
