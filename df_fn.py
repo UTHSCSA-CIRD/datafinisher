@@ -267,6 +267,12 @@ def subsection(self,name='unknown',sep='_',default='unknown'):
   return basedict
 
 """
+Expands a list xx to length nn by repeating it, in the same style that R
+normalizes the lengths of vectors
+"""
+def toLen(xx,nn): return (xx*int(1+math.ceil(nn/len(xx))))[:nn]
+
+"""
 Dynamic SQLifier?
 """
 # should be easy to turn into aggregator UDF: just collect the args, and run ds* at the end
