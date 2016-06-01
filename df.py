@@ -122,6 +122,7 @@ def main(cnx,fname,style,dtcp):
 
     # tprint is what echoes progress to console
     tprint("initialized variables",tt);tt = time.time()
+    # Vivek was here!    
     pdb.set_trace()
     # df_joinme has all unique patient_num and start_date combos, and therefore it defines
     # which rows will exist in the output CSV file. All other columns that get created
