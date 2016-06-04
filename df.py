@@ -70,7 +70,8 @@ def main(cnx,fname,style,dtcp):
     # for ICD9 codes embedded in i2b2 CONCEPT_CD style codes
     icd9grep_c = '^ICD9:([VE0-9]{3}(\\.[0-9]{0,2}){0,1})$'
     # for LOINC codes embedded in paths
-    loincgrep = '\\\\([0-9]{4,5}-[0-9])\\\\COMPONENT'
+    #loincgrep = '\\\\([0-9]{4,5}-[0-9])\\\\COMPONENT'
+    loincgrep = '([0-9]{4,5}-[0-9])'
     # for LOINC codes embedded in i2b2 CONCEPT_CD style codes
     loincgrep_c = '^LOINC:([0-9]{4,5}-[0-9])$'
     
