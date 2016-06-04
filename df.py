@@ -66,7 +66,8 @@ def main(cnx,fname,style,dtcp):
     # regexps to use with grs SQL UDF (above)
     # not quite foolproof-- still pulls in PROCID's, so we filter for DX_ID
     # for ICD9 codes embedded in paths
-    icd9grep = '.*\\\\([VE0-9]{3}(\\.[0-9]{0,2}){0,1})\\\\.*'
+    #icd9grep = '.*\\\\([VE0-9]{3}(\\.[0-9]{0,2}){0,1})\\\\.*'
+    icd9grep = '\\\\(V0+\d{2}|V0+\d{2}\.\d{1,2}|\d{3}|\d{3}\.\d{1,2}|E\d{3}|E\d{3}\.\d{1,2})\\\\'
     # for ICD9 codes embedded in i2b2 CONCEPT_CD style codes
     icd9grep_c = '^ICD9:([VE0-9]{3}(\\.[0-9]{0,2}){0,1})$'
     # for LOINC codes embedded in paths
@@ -123,11 +124,10 @@ def main(cnx,fname,style,dtcp):
 
     # tprint is what echoes progress to console
     tprint("initialized variables",tt);tt = time.time()
-    # Vivek was here!    
-    pdb.set_trace()
     # df_joinme has all unique patient_num and start_date combos, and therefore it defines
     # which rows will exist in the output CSV file. All other columns that get created
     # will be joined to it
+    pdb.set_trace()
     logged_execute(cnx, par['create_joinme'].format(rdst(dtcp)))
     logged_execute(cnx, "CREATE UNIQUE INDEX if not exists df_ix_df_joinme ON df_joinme (patient_num,start_date) ")
     tprint("created df_joinme table and index",tt);tt = time.time()

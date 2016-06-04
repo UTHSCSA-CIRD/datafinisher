@@ -132,7 +132,9 @@ def ifgrp(pattern,txt):
     #rs = re.search(re.compile(pattern),txt)
     rs = re.findall(re.compile(pattern),txt)
     if len(rs):
-      return rs[-1]
+      rs = rs[-1]
+      if isinstance(rs,tuple): return rs[0]
+      else: return rs
     else:
       return txt 
     #else:
