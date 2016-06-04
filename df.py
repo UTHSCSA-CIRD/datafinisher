@@ -127,7 +127,6 @@ def main(cnx,fname,style,dtcp):
     # df_joinme has all unique patient_num and start_date combos, and therefore it defines
     # which rows will exist in the output CSV file. All other columns that get created
     # will be joined to it
-    pdb.set_trace()
     logged_execute(cnx, par['create_joinme'].format(rdst(dtcp)))
     logged_execute(cnx, "CREATE UNIQUE INDEX if not exists df_ix_df_joinme ON df_joinme (patient_num,start_date) ")
     tprint("created df_joinme table and index",tt);tt = time.time()
@@ -300,7 +299,6 @@ def main(cnx,fname,style,dtcp):
     tprint("wrote output table to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
     
-    pdb.set_trace()
     """
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
