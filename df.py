@@ -172,7 +172,6 @@ def main(cnx,fname,style,dtcp):
     # we make the subsection() function declared in df_fn.py a 
     # method of ConfigParser
     ConfigParser.ConfigParser.subsection = subsection
-    ConfigParser.ConfigParser.odsubsection = odsubsection
     cnf = ConfigParser.ConfigParser()
     cnf.read('sql/test.cfg')
     ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]

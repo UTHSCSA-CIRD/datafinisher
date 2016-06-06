@@ -1,6 +1,5 @@
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
 from os.path import dirname
-from collections import OrderedDict 
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
 # okay, below looks screwed up because it seems like a circular reference
