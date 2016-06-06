@@ -229,7 +229,6 @@ def main(cnx,fname,style,dtcp):
     # TODO: figure out why subsection returns duplicates in the first place
     # http://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-in-python-whilst-preserving-order
     dd_criteria = [dd_criteria[ii] for ii in range (0,len(dd_criteria)) if dd_criteria[ii] not in dd_criteria[:ii]]
-    pdb.set_trace()
     [logged_execute(cnx,ii) for ii in dd_criteria]
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
