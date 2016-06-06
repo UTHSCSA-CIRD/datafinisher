@@ -325,10 +325,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     # column names from it
     dycnts = logged_execute(
       cnx,"select "+", ".join(
-	["count(case when {0} not in ('','@',' ') then 1 end)".format(ii) for ii in dynames]
+	["count(case when {0} not in ('','@',' ','F') then 1 end)".format(ii) for ii in dynames]
 	)+" from fulloutput"
       ).fetchone()
-    pdb.set_trace()
     # here are the columns we keep
     # TODO: write dyncnts to df_dynsql table
     keepdynames = [ii[0] for ii in zip(dynames,dycnts) if ii[1] > mincnt]
@@ -348,7 +347,6 @@ def main(cnx,fname,style,dtcp,mincnt):
       finalnames = stnames + keepdynames
       # below line generates the CSV header row
       csv.writer(ff).writerow(finalnames)
-      #csv.writer(ff).writerow([ii[1] for ii in con.execute("PRAGMA table_info("+finalview+")").fetchall()])
       result = logged_execute(
 	cnx, "select {0} from {1}".format(
 	  ",".join(finalnames),finalview
@@ -388,7 +386,7 @@ if __name__ == '__main__':
     if args.cleanup:
       cleanup(con)
     else:
-      main(con,csvfile,args.style,dtcp,args.minimumcount)
+      main(con,csvfile,args.style,dtcp,float(args.minimumcount))
 
 
 
