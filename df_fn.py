@@ -127,12 +127,18 @@ def pyformat(string,*args): return string.format(*args)
 # ICD9, CPT, and LOINC codes from concept paths where they are embedded. For 
 # ICD9 the magic pattern is:
 # '.*\\\\([VE0-9]{3}\.{0,1}[0-9]{0,2})\\\\.*'
+# Returns last match or original text if no match
 def ifgrp(pattern,txt):
-    rs = re.search(re.compile(pattern),txt)
-    if rs == None:
-      return txt 
+    #rs = re.search(re.compile(pattern),txt)
+    rs = re.findall(re.compile(pattern),txt)
+    if len(rs):
+      rs = rs[-1]
+      if isinstance(rs,tuple): return rs[0]
+      else: return rs
     else:
-      return rs.group(1)
+      return txt 
+    #else:
+    #  return rs.group(1)
     
 def subgrp(pattern,rep,txt):
   return re.sub(pattern,str(rep),str(txt))
