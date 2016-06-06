@@ -1,0 +1,19 @@
+digraph df {
+subgraph cluster_inputs {style=invis;
+subgraph cluster_db {label="i2b2 query" style="" color=green; node [shape=rectangle]; VARIABLE;}
+subgraph cluster_i2b2 {label="i2b2 database" style="" color=blue; node [shape=rectangle]; OBSERVATION_FACT -> CONCEPT_DIMENSION [dir=none, penwidth=4];}
+subgraph cluster_conf {label="configuration file" style="" color=red; RULES_FILE [label="ruledefs.cfg",shape=Msquare];}
+}
+subgraph cluster_df {label=DataFinisher; style=invis; subgraph cluster_df0 {DF_RULES; DF_DTDICT; DF_JOINME;} subgraph cluster_df1 {DF_DYNSQL;TXXX}; FULLOUTPUT;}
+RULES_FILE -> DF_RULES;
+OBSERVATION_FACT -> DF_JOINME; 
+VARIABLE -> DF_DTDICT;
+OBSERVATION_FACT -> DF_DTDICT [weight=20 len=5];
+CONCEPT_DIMENSION -> DF_DTDICT [weight=10 len=5];
+DF_RULES -> DF_DYNSQL;
+DF_DTDICT -> DF_DYNSQL;
+{OBSERVATION_FACT DF_JOINME} -> TXXX;
+TXXX -> FULLOUTPUT;
+DF_DYNSQL -> {TXXX FULLOUTPUT} [style=dashed];
+
+}

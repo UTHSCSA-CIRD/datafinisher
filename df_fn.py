@@ -7,11 +7,44 @@ if cwd == '': cwd = '.'
 # not the user wants verbose logging
 from df import dolog
 
+# useful lists
+# columns that may affect the interpretation of the data
+cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
+cols_patdim = ['birth_date','sex_cd','language_cd','race_cd'];
+cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','presuffix','suffix','concode','rule','grouping','subgrouping','in_use','criterion'];
+
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
 ###############################################################################
 
-# okay, this actually works
+# aggregator useful for generating SQL
+class sqlaggregate:
+  def __init__(self):
+    self.lvals = []; self.rvals = []
+    self.lfuns = []; self.rfuns = []
+    self.ops = []; self.joiner = ','
+  def step(self,lval,rval,lfun,op,rfun,joiner):
+    if lval in ['','None',None]: lval = ' '
+    if rval in ['','None',None]: rval = ' '
+    if lfun in ['','None',None]: lfun = ' {0} '
+    if rfun in ['','None',None]: rfun = ' {0} '
+    if op in ['','None',None]: op = ' '
+    if joiner in ['','None',None]: self.joiner = ','
+    else: self.joiner = joiner
+    self.lvals.append(lval)
+    self.rvals.append(rval)
+    self.lfuns.append(lfun)
+    self.rfuns.append(rfun)
+    self.ops.append(op)
+  def finalize(self):
+    # turn into tuples
+    rawvals = zip(self.lfuns,self.lvals,self.ops,self.rfuns,self.rvals);
+    # payload
+    out = [str(xx[0]).format(str(xx[1]))+\
+      str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals]
+    return self.joiner.join(out)
+
+# aggregation for diagnoses and similar data elements
 class diaggregate:
   def __init__(self):
     self.cons = {}
@@ -81,21 +114,37 @@ class debugaggregate:
   def finalize(self):
     return "{"+"},{".join(self.entries)+"}"
 
+# trim and concatenate together strings, e.g. to make column names 
+def trimcat(*args): return ''.join([ii.strip() for ii in args])
+  
+# from the template in the first argument ({0},{1}, etc.)
+# and the replacement variables in the second, put together a string
+# useful for generating SQL 
+def pyformat(string,*args): return string.format(*args)
+
 # this is to register a SQLite function for pulling out matching substrings 
 # (if found) and otherwise returning the original string. Useful for extracting 
 # ICD9, CPT, and LOINC codes from concept paths where they are embedded. For 
 # ICD9 the magic pattern is:
 # '.*\\\\([VE0-9]{3}\.{0,1}[0-9]{0,2})\\\\.*'
+# Returns last match or original text if no match
 def ifgrp(pattern,txt):
-    rs = re.search(re.compile(pattern),txt)
-    
-    if rs == None:
-      return txt 
+    #rs = re.search(re.compile(pattern),txt)
+    rs = re.findall(re.compile(pattern),txt)
+    if len(rs):
+      rs = rs[-1]
+      if isinstance(rs,tuple): return rs[0]
+      else: return rs
     else:
-      return rs.group(1)
+      return txt 
+    #else:
+    #  return rs.group(1)
+    
+def subgrp(pattern,rep,txt):
+  return re.sub(pattern,str(rep),str(txt))
 
 # The rdt and rdst functions aren't exactly user-defined SQLite functions...
-# They are python function that emit a string to concatenate into a larger SQL query
+# They are python functions that emit a string to concatenate into a larger SQL query
 # and send back to SQL... because SQLite has a native julianday() function that's super
 # easy to use. So, think of rdt and rdst as pseudo-UDFs
 def rdt(datecol,factor):
@@ -182,11 +231,99 @@ def cleanup(cnx):
     print "Dropping tables"
     [logged_execute(cnx,"drop table if exists "+ii[0]) for ii in \
       logged_execute(cnx,df_stuff.format('table')).fetchall()]
+    # also have to drop the finalouput and finaloutput2 tables
+    # TODO: either consolidate these tables or rename them or otherwise make them 
+    # follow the same patterns as the other tables
+    logged_execute(cnx,"drop table if exists fulloutput")
+    logged_execute(cnx,"drop table if exists fulloutput2")
     print "Dropping indexes"
     [logged_execute(cnx,"drop index if exists "+ii[0]) for ii in \
       logged_execute(cnx,df_stuff.format('index')).fetchall()]
     
-    
+
+################################################################################
+# Custom class methods                                                         #
+################################################################################
+# returns a dictionary of name:value pairs for an entire section
+# sort of like ConfigParser.defaults() but for any section
+# still with final failover to DEFAULT but now you can use 
+# this output as a vars argument to a get()
+# def section(self,name='unknown'): return dict(self.items(name))
+def subsection(self,name='unknown',sep='_',default='unknown'):
+  # in summary, we take whatever section is named by the `default`
+  # argument, update it with the base-name if any
+  # update it with the actual name, and return that dictionary
+  basedict = dict(self.items(default))
+  if name == default: return basedict
+  topdict = dict(self.items(name))
+  if name.find(sep) < 1 :
+    basedict.update(topdict)
+    return basedict
+  else : basename,suffix = name.split(sep,1)
+  #import pdb; pdb.set_trace()
+  #if 'presuffix' in basedict.keys() and basedict['presuffix'] != '':
+    #setsuffix = True
+  #else: setsuffix = False
+  if basename in self.sections():
+      # use the basename's items and override them with topdict
+      basedict.update(dict(self.items(basename)))
+  basedict.update(topdict)
+  if('grouping' in topdict.keys() and topdict['grouping'] != '1'):
+    basedict['presuffix'] = "_"+suffix
+  else:
+    basedict['suffix'] = "_"+suffix
+  #if setsuffix:
+    #basedict['suffix'] = "_"+suffix
+  #else: basedict['presuffix'] = "_"+suffix
+  return basedict
+
+"""
+Dynamic SQLifier?
+"""
+# should be easy to turn into aggregator UDF: just collect the args, and run ds* at the end
+
+# the core function
+def ds(lval,rval=' ',lfun=' {0} ',rfun=' {0} ',op=' ',joiner=','):
+  # check for optional args and expand as needed
+  if isinstance(lval,str): lval = [lval];
+  else: lval = map(str,lval);
+  ln = len(lval);
+  # TODO: check for mismatched list lengths, non-lists, etc.
+  # TODO: check for non-string arguments (catch and fix numeric)
+  # DONE: check for non-string lists (catch and fix numeric)
+  # DONE: make it so that if joiner is None, then don't join, just return list
+  # (so that we can use it to combine conditions)
+  # for any string args, turn them into lists and extend to same length
+  if isinstance(rval,str): rval = [rval]*ln
+  else: rval = map(str,rval);
+  if isinstance(lfun,str): lfun = [lfun]*ln;
+  else: lfun = map(str,lfun);
+  if isinstance(rfun,str): rfun = [rfun]*ln;
+  else: rfun = map(str,rfun);
+  if isinstance(op,str): op = [op]*ln;
+  else: op = map(str,op);
+  # turn into tuples
+  rawvals = zip(lfun,lval,op,rfun,rval);
+  # payload
+  out = [str(xx[0]).format(str(xx[1]))+\
+    str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals];
+  if joiner is None:
+    return out;
+  else:
+    return joiner.join(out);
+
+# convenience wrappers
+
+# for select and order-by clauses
+def dsSel(lval,rval='',lfun=' {0} '):
+  if lfun != ' {0} ' and rval == '': rval = lval;
+  return ds(lval,rval,lfun);
+
+# for where clauses and the 'on' clauses of join statements
+def dsCond(lval,rval,joiner=' and ',op=' = ',lfun = ' {0} ',rfun=' {0} '):
+  return ds(lval,rval,lfun,rfun,op,joiner);
+
+# TODO: a general-case join wrapper
 
 
 def tprint(str,tt):
@@ -207,3 +344,4 @@ def create_ruledef(cnx, filename):
 	cnx.executemany("INSERT INTO df_rules VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);", to_db[1:])
 	cnx.commit()
 	
+# read a config file subsection as specified by a delimited string
