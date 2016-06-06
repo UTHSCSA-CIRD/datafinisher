@@ -172,24 +172,24 @@ def main(cnx,fname,style,dtcp):
     # we make the subsection() function declared in df_fn.py a 
     # method of ConfigParser
     ConfigParser.ConfigParser.subsection = subsection
+    ConfigParser.ConfigParser.odsubsection = odsubsection
     cnf = ConfigParser.ConfigParser()
     cnf.read('sql/test.cfg')
     ruledicts = [cnf.subsection(ii) for ii in cnf.sections()]
     # replacement for df_rules
-    if len(logged_execute(cnx,"pragma table_info('df_rules')").fetchall()) < 1:
-      logged_execute(cnx,"""CREATE TABLE df_rules 
-		     (sub_slct_std UNKNOWN_TYPE_STRING, sub_payload UNKNOWN_TYPE_STRING
-		     , sub_frm_std UNKNOWN_TYPE_STRING, sbwr UNKNOWN_TYPE_STRING
-		     , sub_grp_std UNKNOWN_TYPE_STRING, presuffix UNKNOWN_TYPE_STRING
-		     , suffix UNKNOWN_TYPE_STRING, concode UNKNOWN_TYPE_BOOLEAN NOT NULL
-		     , rule UNKNOWN_TYPE_STRING NOT NULL, grouping INTEGER NOT NULL
-		     , subgrouping INTEGER NOT NULL, in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
-		     , criterion UNKNOWN_TYPE_STRING)""");
-      #logged_execute(cnx,"delete from df_rules"); cnx.commit();
-      # we read our cnf.subsection()s in...
-      # populate the df_rules table to make sure result matches the .csv rules
-      [cnx.execute("insert into df_rules ({0}) values (\" {1} \")".format(
-	",".join(ii.keys()),' "," '.join(ii.values()))) for ii in ruledicts if ii['in_use']=='1']
+    logged_execute(cnx,"""CREATE TABLE IF NOT EXISTS df_rules 
+		    (sub_slct_std UNKNOWN_TYPE_STRING, sub_payload UNKNOWN_TYPE_STRING
+		    , sub_frm_std UNKNOWN_TYPE_STRING, sbwr UNKNOWN_TYPE_STRING
+		    , sub_grp_std UNKNOWN_TYPE_STRING, presuffix UNKNOWN_TYPE_STRING
+		    , suffix UNKNOWN_TYPE_STRING, concode UNKNOWN_TYPE_BOOLEAN NOT NULL
+		    , rule UNKNOWN_TYPE_STRING NOT NULL, grouping INTEGER NOT NULL
+		    , subgrouping INTEGER NOT NULL, in_use UNKNOWN_TYPE_BOOLEAN NOT NULL
+		    , criterion UNKNOWN_TYPE_STRING) """);
+    #logged_execute(cnx,"delete from df_rules"); cnx.commit();
+    # we read our cnf.subsection()s in...
+    # populate the df_rules table to make sure result matches the .csv rules
+    [cnx.execute("insert into df_rules ({0}) values (\" {1} \")".format(
+      ",".join(ii.keys()),' "," '.join(ii.values()))) for ii in ruledicts if ii['in_use']=='1']
     tprint("created rule definitions",tt);tt = time.time()
 
     # Read in and run the sql/dd.sql file
@@ -209,7 +209,29 @@ def main(cnx,fname,style,dtcp):
 			 update df_dtdict set rule = '{0}'
 			 where rule = 'UNKNOWN_DATA_ELEMENT' and 
 			 """) for ii in ruledicts if ii['rule']!='UNKNOWN_DATA_ELEMENT']
-    [logged_execute(cnx,ii) for ii in set(dd_criteria)]
+    # Ah, okay. Figured out why ethnicity rule was being ignored. All the `rule` fields in
+    # dd_dtdict start out as being UNKNOWN_DATA_ELEMENT, to mark them as not having been
+    # matched by any preceding rule. The order in which the rules are tried matters-- the
+    # more specific ones go in the beginning, and the more general ones toward the end, 
+    # and the ultimate fallback rule targets the UNKNOWN_DATA_ELEMENT rows that remain.
+    # So there was nothing wrong with the `ethnicity` rule (I think), but the `code` rule kept
+    # jumping ahead of it in line (because ethnicity like a code, but we want it to be
+    # handled in a special way, so it's a specific type of code). I originally thought this 
+    # was due to dicts() inside the ruledicts list having an undefined ordering, and hence 
+    # the OrderedDict branch. However, the dicts themselves aren't relied on for ordering...
+    # it's the ordering of those dicts within the ruledicts list that matters, and lists 
+    # should preserve ordering. And dd_criteria is also a list (of DDL statements) and those
+    # also are in the right order. The entries in ruledicts and dd_criteria are in the right
+    # order but for some reason subsection() duplicates them. Seems like it shouldn't cause
+    # any wrong behavior and maybe not even a noticeable performance hit, but I guess my OCD
+    # couldn't bear to let this happen, so I wrapped dd_criteria in set(). And THAT is what
+    # scrambled their ordering! I am replaceing set() with a trick learned from StackExchange
+    # Removing duplicates from dd_criteria
+    # TODO: figure out why subsection returns duplicates in the first place
+    # http://stackoverflow.com/questions/480214/how-do-you-remove-duplicates-from-a-list-in-python-whilst-preserving-order
+    dd_criteria = [dd_criteria[ii] for ii in range (0,len(dd_criteria)) if dd_criteria[ii] not in dd_criteria[:ii]]
+    pdb.set_trace()
+    [logged_execute(cnx,ii) for ii in dd_criteria]
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
