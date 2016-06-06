@@ -231,6 +231,11 @@ def cleanup(cnx):
     print "Dropping tables"
     [logged_execute(cnx,"drop table if exists "+ii[0]) for ii in \
       logged_execute(cnx,df_stuff.format('table')).fetchall()]
+    # also have to drop the finalouput and finaloutput2 tables
+    # TODO: either consolidate these tables or rename them or otherwise make them 
+    # follow the same patterns as the other tables
+    logged_execute(cnx,"drop table if exists fulloutput")
+    logged_execute(cnx,"drop table if exists fulloutput2")
     print "Dropping indexes"
     [logged_execute(cnx,"drop index if exists "+ii[0]) for ii in \
       logged_execute(cnx,df_stuff.format('index')).fetchall()]

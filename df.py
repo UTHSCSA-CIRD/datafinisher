@@ -67,7 +67,7 @@ def main(cnx,fname,style,dtcp):
     # not quite foolproof-- still pulls in PROCID's, so we filter for DX_ID
     # for ICD9 codes embedded in paths
     #icd9grep = '.*\\\\([VE0-9]{3}(\\.[0-9]{0,2}){0,1})\\\\.*'
-    icd9grep = '\\\\(V0+\d{2}|V0+\d{2}\.\d{1,2}|\d{3}|\d{3}\.\d{1,2}|E\d{3}|E\d{3}\.\d{1,2})\\\\'
+    icd9grep = '\\\\(V0{0,1}\d{2}|V0{0,1}\d{2}\.\d{1,2}|\d{3}|\d{3}\.\d{1,2}|E\d{3}|E\d{3}\.\d{1,2})\\\\'
     # for ICD9 codes embedded in i2b2 CONCEPT_CD style codes
     icd9grep_c = '^ICD9:([VE0-9]{3}(\\.[0-9]{0,2}){0,1})$'
     # for LOINC codes embedded in paths
