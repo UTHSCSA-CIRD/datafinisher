@@ -272,6 +272,7 @@ def main(cnx,fname,style,dtcp,mincnt):
     
     # code for creating all the temporary tables
     # where cmh.db slows down
+    pdb.set_trace()
     [logged_execute(cnx, ii[0]) for ii in logged_execute(cnx, par['maketables']).fetchall()]
     tprint("created all tables described by df_dynsql",tt);tt = time.time()
     
