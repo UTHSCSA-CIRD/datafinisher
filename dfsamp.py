@@ -23,26 +23,26 @@ def logged_execute(cnx, statement, comment=''):
     return cnx.execute(statement)
 
 def main(cnx,samples):
-  import pdb;pdb.set_trace()
   if int(samples) != samples:
     npt = logged_execute(cnx,"select count(*) from patient_dimension").fetchone()[0]
     samples = int(round(samples*npt))
   else: samples = int(samples)
     
-  pns = logged_execute(cnx,"select distinct patient_num from patient_dimension").fetchall()
-  pns = random.sample(pns,samples)
-  qry_selection = "create table selected as "+" union ".join(" select "+str(ii[0])+" pn " for ii in pns)
-  logged_execute(cnx,qry_selection);
-  qry_populate = "create table {0}_tmp as select {0}.* from {0} join selected on patient_num = pn"
+  qry_pat = """create table patient_dimension_tmp as select * from patient_dimension 
+	       where patient_num in 
+	       (select patient_num from patient_dimension order by random() limit {0})"""
+  qry_obs = """create table observation_fact_tmp as select * from observation_fact
+	       where patient_num in
+	       (select patient_num from patient_dimension_tmp)"""
+  logged_execute(cnx,qry_pat.format(samples))
+  logged_execute(cnx,qry_obs)
   qry_delete = "delete from {0}"
   qry_insert = "insert into {0} select * from {0}_tmp"
   qry_drop = "drop table {0}_tmp"
   for ii in ['patient_dimension','observation_fact'] :
-    logged_execute(cnx,qry_populate.format(ii))
     logged_execute(cnx,qry_delete.format(ii))
     logged_execute(cnx,qry_insert.format(ii))
     logged_execute(cnx,qry_drop.format(ii))
-  logged_execute(cnx,'drop table selected')
   cnx.commit()
   logged_execute(cnx,'vacuum')
 
