@@ -153,11 +153,18 @@ def main(cnx,fname,style,dtcp,mincnt):
     # LOINC nodes modified analogously to ICD9 nodes above
     #logged_execute(cnx, """update df_codeid set cpath = substr(ccd,instr(ccd,':')+1) where ddomain = 'LOINC'""")
     logged_execute(cnx, "update df_codeid_tmp set cpath = replace(ccd,'LOINC:','') where ddomain = 'LOINC'")
+    # several times now we have found bugs caused by cpaths remaining as paths becasue nothing catches the root concept codes.
+    # Below specifically detects the rows where the cpath has original paths (or anything else that has characters illegal in a column name excep '-')
+    # and replaces them with sanitized versions of the raw concept codes whatever they might be
+    logged_execute(cnx, """update df_codeid_tmp set cpath = 'GENERIC_'||grsub('[^A-Za-z0-9_]','_',ccd) 
+      where ddomain not in ('ICD9','LOINC') and cpath != grs('[^A-Za-z0-9_-]',cpath)""")
+    # TODO: we need to find those and replace them with a sanitized version of the raw concept codes via grsub()
+    # TODO: also, make sure that only CCDs that actually exist in obs_fact are included here
     # df_codeid gets created here from the distinct values of df_codeid_tmp
     logged_execute(cnx, par['create_codeid'])
     logged_execute(cnx, "create UNIQUE INDEX if not exists df_ix_df_codeid ON df_codeid (id,cpath,ccd)")
-    cnx.commit()
     logged_execute(cnx, "drop table if exists df_codeid_tmp")
+    cnx.commit()
     tprint("mapped concept codes in df_codeid",tt);tt = time.time()
     
     # The create_obsfact table may make most of the views unneccessary... it did!
@@ -320,6 +327,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     else:
       finalview = 'fulloutput'
     
+    # Okay, so this is the reason we don't have a .csv output bloated with empty columns
+    # even before we started filtering the df_codeid table in this patch. However, this patch
+    # should make the code run faster and the output .db smaller
     # do value-counts for each column
     # we have to do a naked cursor here because we'll need to get 
     # column names from it
