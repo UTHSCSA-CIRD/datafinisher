@@ -12,6 +12,8 @@ from df import dolog
 cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
 cols_patdim = ['birth_date','sex_cd','language_cd','race_cd'];
 cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','presuffix','suffix','concode','rule','grouping','subgrouping','in_use','criterion'];
+# the columns to pull (from df_dynsql) to create the data dictionary file
+cols_meta = ['colname', 'colname_long', 'rule'];
 
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
