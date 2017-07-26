@@ -357,15 +357,22 @@ def main(cnx,fname,style,dtcp,mincnt):
       finalnames = stnames + keepdynames
       # below line generates the CSV header row
       csv.writer(ff).writerow(finalnames)
+      # fetch the final data 
       result = logged_execute(
 	cnx, "select {0} from {1}".format(
 	  ",".join(finalnames),finalview
 	  )
 	).fetchall()
+      # write the data to csv
       with ff:
 	  csv.writer(ff).writerows(result)
-	  
-    tprint("wrote output table to file",tt);tt = time.time()
+      tprint("wrote output table to file",tt);tt = time.time()
+      # now the metadata
+      f0 = open('meta_'+fname,'wb')
+      csv.writer(f0).writerow(cols_meta)
+      result = logged_execute(cnx,'select '+','.join(cols_meta)+' from df_dynsql').fetchall()
+      with f0: csv.writer(f0).writerows(result)
+      tprint("wrote metadata to file",tt);tt = time.time()
     tprint("TOTAL RUNTIME",startt)
     
     """
