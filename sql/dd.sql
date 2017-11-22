@@ -69,6 +69,7 @@ group by id) qnid on cid = qnid.id
 left join (
 select count(distinct location_cd) location_cd,id from df_obsfact
 where location_cd is not null
+and location_cd != '@'
 group by id) loid on cid = loid.id
 left join (
 select group_concat(distinct valtype_cd) valtype_cd,id from df_obsfact
