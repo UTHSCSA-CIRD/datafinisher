@@ -5,7 +5,7 @@ usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] 
 """
 
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
-from os.path import dirname
+from os.path import dirname,basename
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
 cfg = ConfigParser.RawConfigParser()
@@ -369,7 +369,8 @@ def main(cnx,fname,style,dtcp,mincnt):
 	  csv.writer(ff).writerows(result)
       tprint("wrote output table to file",tt);tt = time.time()
       # now the metadata
-      f0 = open('meta_'+fname,'wb')
+      f0 = open(dirname(fname)+'/meta_'+basename(fname),'wb')
+      #import pdb; pdb.set_trace()
       csv.writer(f0).writerow(cols_meta)
       result = logged_execute(cnx,'select '+','.join(cols_meta)+' from df_dynsql').fetchall()
       with f0: csv.writer(f0).writerows(result)
