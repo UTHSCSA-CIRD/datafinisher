@@ -369,7 +369,9 @@ def main(cnx,fname,style,dtcp,mincnt):
 	  csv.writer(ff).writerows(result)
       tprint("wrote output table to file",tt);tt = time.time()
       # now the metadata
-      f0 = open(dirname(fname)+'/meta_'+basename(fname),'wb')
+      path = dirname(fname)
+      if path == '': path = '.'
+      f0 = open(path + '/meta_' + basename(fname),'wb')
       #import pdb; pdb.set_trace()
       csv.writer(f0).writerow(cols_meta)
       result = logged_execute(cnx,'select '+','.join(cols_meta)+' from df_dynsql').fetchall()
