@@ -1,4 +1,5 @@
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
+import json
 from os.path import dirname
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
@@ -104,6 +105,21 @@ class infoaggregate:
 	del self.cons['ix']
     return (str(self.cons)[1:-1]).replace("', '","','").replace(": ",":")
 
+# Packs a set of rows from i2b2 concept_dimension into a JSON object (string)
+class jsonaggregate:
+  def __init__(self):
+    self.entries = {}
+  def step(self,st,cc,mc,ix,vt,tc,nv,vf,qt,un,lc,cf):
+    fields = vars()
+    self.entries[len(self.entries)] = ({
+      xx: fields.get(xx,None) if fields.get(xx,None) not in ['@',None,'','None'] else None 
+      for xx in ('st','cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf')})
+  def finalize(self):
+    self.entries['count'] = len(self.entries)
+    #import pdb; 
+    #if(self.entries['count']>1): pdb.set_trace();
+    return json.dumps(self.entries)
+
 # this is the kitchen-sink aggregator-- doesn't really condense the data, 
 # rather the purpose is to preserve everything there is to be known about 
 # each OBSERVATION_FACT entry while still complying with the 
@@ -112,6 +128,9 @@ class debugaggregate:
   def __init__(self):
     self.entries = []
   def step(self,cc,mc,ix,vt,tc,nv,vf,qt,un,lc,cf):
+    foo = vars()
+    bar = {xx: foo.get(xx,None) if foo.get(xx,None) not in ['@',None,'','None'] else None for xx in ('cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf')}
+    import pdb; pdb.set_trace();
     self.entries.append(",".join(['"'+ii+'":"'+str(vars()[ii])+'"' for ii in ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf'] if vars()[ii] not in ['@',None,'','None']]))
   def finalize(self):
     return "{"+"},{".join(self.entries)+"}"
