@@ -287,8 +287,10 @@ def main(cnx,fname,style,dtcp,mincnt):
     
     # TODO: lots of variables being created here, therefore candidates for renaming
     # or refactoring to make simpler
-    allsel = rdt('birth_date',dtcp)+""" birth_date, sex_cd 
-      ,language_cd, race_cd, julianday(df_joinme.start_date) - julianday("""+rdt('birth_date',dtcp)+") age_at_visit_days,"""
+    allsel = rdt('birth_date',dtcp) + """ birth_date, sex_cd 
+    ,language_cd, race_cd, julianday(df_joinme.start_date) - julianday(""" + \
+      rdt('birth_date',dtcp) + """) age_at_visit_days, julianday(""" + \
+	rdt('death_date',dtcp) + ") - julianday(" + rdt('birth_date',dtcp) + ") age_at_death_days,"
     dynsqlsel = logged_execute(cnx, "select group_concat(colname) from df_dynsql").fetchone()[0]
     
     allqry = "create table if not exists fulloutput as select df_joinme.*," + allsel + dynsqlsel
