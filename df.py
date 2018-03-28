@@ -59,7 +59,8 @@ def main(cnx,fname,style,dtcp,mincnt):
     # string aggregation for user-specified fields
     cnx.create_aggregate("igr",11,infoaggregate)
     # the kitchen-sink aggregator that tokenizes and concatenates everything
-    cnx.create_aggregate("xgr",11,debugaggregate)
+    #cnx.create_aggregate("xgr",11,debugaggregate)
+    cnx.create_aggregate("xgr",12,jsonaggregate)
     cnx.create_aggregate("sqgr",6,sqlaggregate)
     
     # TODO: this is a hardcoded dependency on LOINC and ICD9 strings in paths! 
@@ -369,7 +370,9 @@ def main(cnx,fname,style,dtcp,mincnt):
 	  csv.writer(ff).writerows(result)
       tprint("wrote output table to file",tt);tt = time.time()
       # now the metadata
-      f0 = open(dirname(fname)+'/meta_'+basename(fname),'wb')
+      path = dirname(fname)
+      if path == '': path = '.'
+      f0 = open(path + '/meta_'+basename(fname),'wb')
       #import pdb; pdb.set_trace()
       csv.writer(f0).writerow(cols_meta)
       result = logged_execute(cnx,'select '+','.join(cols_meta)+' from df_dynsql').fetchall()
