@@ -33,6 +33,8 @@ dolog = args.log
 
 from df_fn import *
 
+testjson = """{"0": {"ix": 57016613993402840, "vf": null, "mc": "DX|PROF:NONPRIMARY", "cc": "GENERIC_KUH_DX_ID_2449", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "1": {"ix": 9697820316663506, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "2": {"ix": 55916360278195536, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "count": 3}"""
+
 
 def main(cnx,fname,style,dtcp,mincnt):
     tt = time.time(); startt = tt
@@ -404,7 +406,7 @@ if __name__ == '__main__':
       dtcp = 365.25/12
     else:
       dtcp = args.datecompress
-      
+    xfieldj(testjson,'cc')
     if args.cleanup:
       cleanup(con)
     else:

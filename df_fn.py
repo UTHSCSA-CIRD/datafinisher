@@ -1,5 +1,5 @@
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
-import json
+import json, sys
 from os.path import dirname
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
@@ -226,6 +226,33 @@ def dropletters(intext):
 ###############################################################################
 # Functions used in df.py directly                                            #
 ###############################################################################
+
+def xfieldj(data, field, transform=None, select=None, *args, **kwargs):
+  """
+  The data argument should be a string in JSON format that contains one or
+  more JSON objects. The fields should be a named field in those objects.
+  If transform is None, a list of values is returned, otherwise transform
+  is first applied to it, and should be a function, which could be an
+  aggregation function. Note: the following work on either characters or 
+  numbers: max, min, """
+  unpdat = json.loads(data)
+  # notice that we wrap in sorted() because dicts have an undefined order
+  oo = [unpdat[xx].get(field,None) for xx in sorted(unpdat.keys()) if xx != 'count']
+  # if a selection criterion is given, use it
+  if(select != None): 
+    if(callable(select)):
+      select = select(data,*args,**kwargs)
+    err = False
+    if(not isinstance(select,list)): err = True
+    else:
+      if(len(select) != len(oo)):
+	err = True
+    if(err):
+      raise ValueError("The select argument should either be a list or a function that returns a boolean list (of the same length as the initial result extracted from the data)")
+    select = [bool(xx) for xx in select]
+    oo = [ii for (ii,jj) in zip(oo,select) if jj]
+  if(callable(transform)): oo = transform(oo,*args,**kwargs)
+  import pdb; pdb.set_trace()
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
