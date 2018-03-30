@@ -31,6 +31,18 @@ Note: the following works:
 
 xfieldj(testjson,**testargs['match_mc'])
 
+TODO: What if the data argument is None or not JSON?
+TODO: Iterate over a list of extractors for the same cell.
+TODO: Have a list of lists of extractors and iterate over it for a line, returning the raw values for cells
+      that are not JSON objects
+TODO: Store the extractors in one dict per cell, with the dicts in a list with the same number of rows as 
+      there are columns in the input data
+TODO: Populate such a list from JSON strings in the first row of the input data and a set of rules for which
+      default extractor goes with which set of conditions (and which extractors are invalid for which 
+      conditions)
+TODO: Generate the JSON strings in df.py by reading the data dictionary.
+TODO: Figure out best way to hand over fresh output file from df.py directly to dfx.py
+TODO: Start chopping out the no longer needed stuff from df.py
 """
 
 def main(csvin):
