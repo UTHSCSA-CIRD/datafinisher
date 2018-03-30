@@ -1,6 +1,6 @@
 """ Take a random sample of a DataBuilder file
 ---------------------------------------------------------------------
-usage: dfsh.py [-h] [-n NSAMPLES] [-o OUTFILE] [dbin]
+usage: dfsamp.py [-l] [-h] [-n NSAMPLES] [-o OUTFILE] [dbin]
     
 """
 
