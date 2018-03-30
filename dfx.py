@@ -26,6 +26,13 @@ testargs = {'num_ix': {'field':'ix','transform':len},'any_vf': {'field':'vf','tr
 	    #,'':{'field':'','transform':None}
 	    ,}
 
+"""
+Note: the following works:
+
+xfieldj(testjson,**testargs['match_mc'])
+
+"""
+
 def main(csvin):
   # read the csvin file
   # parse the first row
