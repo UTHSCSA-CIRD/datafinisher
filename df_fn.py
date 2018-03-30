@@ -233,15 +233,31 @@ def xfieldj(data, field, transform=None, select=None, *args, **kwargs):
   more JSON objects. The fields should be a named field in those objects.
   If transform is None, a list of values is returned, otherwise transform
   is first applied to it, and should be a function, which could be an
-  aggregation function. Note: the following work on either characters or 
-  numbers: max, min, """
+  aggregation function.
+  
+  All of the following work (of course for other fields than 'ix' also:
+  
+  # using a function as the select argument
+  xfieldj(testjson,'ix',None,lambda xx,mn: [90000000000000000>xx[zz].get('ix')>mn for zz in xx if zz !='count'],mn=10000000000000000)
+  # return the max, min
+  xfieldj(testjson,'ix',max); xfieldj(testjson,'ix',min); 
+  # return the last, first
+  xfieldj(testjson,'ix',lambda xx: xx.pop()); xfieldj(testjson,'ix',lambda xx: xx[0])
+  # return any, all
+  xfieldj(testjson,'ix',any); xfieldj(testjson,'ix',all)
+  # median, mean, sd
+  xfieldj(testjson,'ix',numpy.percentile,q=0.5);xfieldj(testjson,'ix',numpy.mean);
+  xfieldj(testjson,'ix',numpy.std); 
+  # random
+  xfieldj(testjson,'ix',random.choice); 
+  """
   unpdat = json.loads(data)
   # notice that we wrap in sorted() because dicts have an undefined order
   oo = [unpdat[xx].get(field,None) for xx in sorted(unpdat.keys()) if xx != 'count']
   # if a selection criterion is given, use it
   if(select != None): 
     if(callable(select)):
-      select = select(data,*args,**kwargs)
+      select = select(unpdat,*args,**kwargs)
     err = False
     if(not isinstance(select,list)): err = True
     else:
@@ -252,7 +268,7 @@ def xfieldj(data, field, transform=None, select=None, *args, **kwargs):
     select = [bool(xx) for xx in select]
     oo = [ii for (ii,jj) in zip(oo,select) if jj]
   if(callable(transform)): oo = transform(oo,*args,**kwargs)
-  import pdb; pdb.set_trace()
+  return(oo)
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
