@@ -270,7 +270,7 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, *
     oo = [ii for (ii,jj) in zip(oo,select) if jj]
   if(omitnull): oo = [xx for xx in oo if xx is not None]
   if(callable(transform)): oo = transform(oo,*args,**kwargs)
-  return(sep.join(oo))
+  return(sep.join(set(oo)))
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
