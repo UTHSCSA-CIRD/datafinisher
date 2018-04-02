@@ -47,8 +47,14 @@ TODO: Start chopping out the no longer needed stuff from df.py
 
 def main(csvin):
   # read the csvin file
+  myfhandle = open(csvin,'r')
+  fr = csv.reader(myfhandle)
+  myheader = fr.next()
+  # get the header
   # parse the first row
   # iterate over the other rows and process them
+  row0 = fr.next()
+  # create an object with args for each column and iterate over it
   # write the processed rows to the outfile
   import pdb; pdb.set_trace()
 
