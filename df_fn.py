@@ -227,7 +227,7 @@ def dropletters(intext):
 # Functions used in df.py directly                                            #
 ###############################################################################
 
-def xfieldj(data, field, transform=None, select=None, *args, **kwargs):
+def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, *args, **kwargs):
   """
   The data argument should be a string in JSON format that contains one or
   more JSON objects. The fields should be a named field in those objects.
@@ -251,6 +251,7 @@ def xfieldj(data, field, transform=None, select=None, *args, **kwargs):
   # random
   xfieldj(testjson,'ix',random.choice); 
   """
+  if(data in ['',None]): return('')
   unpdat = json.loads(data)
   # notice that we wrap in sorted() because dicts have an undefined order
   oo = [unpdat[xx].get(field,None) for xx in sorted(unpdat.keys()) if xx != 'count']
@@ -267,8 +268,9 @@ def xfieldj(data, field, transform=None, select=None, *args, **kwargs):
       raise ValueError("The select argument should either be a list or a function that returns a boolean list (of the same length as the initial result extracted from the data)")
     select = [bool(xx) for xx in select]
     oo = [ii for (ii,jj) in zip(oo,select) if jj]
+  if(omitnull): oo = [xx for xx in oo if xx is not None]
   if(callable(transform)): oo = transform(oo,*args,**kwargs)
-  return(oo)
+  return(sep.join(oo))
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
