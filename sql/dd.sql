@@ -76,10 +76,12 @@ select group_concat(distinct valtype_cd) valtype_cd,id from df_obsfact
 where valtype_cd is not null
 group by id) vtid on cid = vtid.id
 left join (
+-- max number of distinct instance numbers of this type per patient-visit
 select id,max(cnt) mxinsts from (
-        select id,pn,sd,count(*) cnt
+        select id,count(distinct instance_num) cnt
         from df_obsfact group by pn,sd,id
 ) group by id) counts on cid = counts.id
+-- max number of facts of this type per patient-visit
 left join (
 select id,max(cnt) mxfacts from (
         select id,pn,sd,count(*) cnt
