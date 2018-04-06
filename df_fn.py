@@ -251,7 +251,7 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
   # random
   xfieldj(testjson,'ix',random.choice); 
   """
-  if(as_is) return(data)
+  if(as_is): return(data)
   if(data in ['',None]): return('')
   # TODO: return malformed json as_is for the user to figure out? Perhaps if debug is enabled?
   unpdat = json.loads(data)
