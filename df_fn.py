@@ -227,7 +227,7 @@ def dropletters(intext):
 # Functions used in df.py directly                                            #
 ###############################################################################
 
-def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, *args, **kwargs):
+def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, as_is=False, *args, **kwargs):
   """
   The data argument should be a string in JSON format that contains one or
   more JSON objects. The fields should be a named field in those objects.
@@ -251,7 +251,9 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, *
   # random
   xfieldj(testjson,'ix',random.choice); 
   """
+  if(as_is) return(data)
   if(data in ['',None]): return('')
+  # TODO: return malformed json as_is for the user to figure out? Perhaps if debug is enabled?
   unpdat = json.loads(data)
   # notice that we wrap in sorted() because dicts have an undefined order
   oo = [unpdat[xx].get(field,None) for xx in sorted(unpdat.keys()) if xx != 'count']
