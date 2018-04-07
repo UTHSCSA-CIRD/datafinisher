@@ -255,8 +255,16 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
   if(data in ['',None]): return('')
   # TODO: return malformed json as_is for the user to figure out? Perhaps if debug is enabled?
   unpdat = json.loads(data)
+  # right now unpdat is a dict of dicts, so it's unordered and yet it might matter in which order 
+  # the observations were entered, so we extract the keynames except count
+  dkeys = [ii for ii in unpdat.keys() if ii != 'count']
+  # df created all of these as integers, and we sort them as such without changing their values
+  # or types
+  dkeys.sort(key=int)
+  # and now we turn unpdat into a list of dicts, with the same order as that of the original entries
+  unpdat = [unpdat[ii] for ii in dkeys]
   # notice that we wrap in sorted() because dicts have an undefined order
-  oo = [unpdat[xx].get(field,None) for xx in sorted(unpdat.keys()) if xx != 'count']
+  oo = [xx.get(field,None) for xx in unpdat]
   # if a selection criterion is given, use it
   if(select != None): 
     if(callable(select)):
