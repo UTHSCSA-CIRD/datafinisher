@@ -46,9 +46,9 @@ Note: the following works:
 
 xfieldj(testjson,**testargs['match_mc'])
 
-TODO: What if the data argument is None or not JSON?
+TODO: What if the data argument is --None-- or not JSON?
 TODO: On the df.py side, create an extra concept_cd||modifier_cd field
-TODO: Iterate over a list of extractors for the same cell.
+DONE: Iterate over a list of extractors for the same cell.
 TODO: Have a list of lists of extractors and iterate over it for a line, returning the raw values for cells
       that are not JSON objects
 DONE: Store the extractors in one dict per cell, with the dicts in a list with the same number of rows as 
@@ -83,22 +83,23 @@ def main(csvin):
       # for example
       newheader.extend([(myheader[ii]+'.%s') % kk for kk in [jj[1] for jj in meta[ii]['extractor']]])
       # and this one extends a list of names of argument-sets for xfieldj
-      mytemplate.extend([jj[0] for jj in meta[ii]['extractor']])
+      mytemplate.append([jj[0] for jj in meta[ii]['extractor']]+['as_is'])
       # extend the length of newmeta by the same number of empty cells as how many new columns have
       # been added just now
       newmeta.extend([''] * (len(newheader)-len(newmeta)))
+    else: mytemplate.append(['as_is',])
     # the below applies to all columns whether as_is or not
     # now add on the original base name for that series of columns
     newheader.append(myheader[ii])
     # and an as_is so the meta field gets preserved in the output
-    mytemplate.append('as_is')
+    #mytemplate.append(['as_is',])
     # append the old meta to the newmeta
     newmeta.append(meta[ii])
   # iterate over the other rows and process them, using the respective values in mytemplate
   # DONE: update testargs with the intended values for: as_is, concat_unique, last_numeric, last_unique
   #       true_false, true_false_active
   # TODO: actually start processing the rows!
-  # TODO: multiple extractors for one field
+  # DONE: multiple extractors for one field
   # DONE: create the new first row for the output, with the non-meta columns having null values or something
   row0 = fr.next()
   # create an object with args for each column and iterate over it
