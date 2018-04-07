@@ -227,7 +227,8 @@ def dropletters(intext):
 # Functions used in df.py directly                                            #
 ###############################################################################
 
-def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, as_is=False, *args, **kwargs):
+def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, as_is=False
+	    , nulls_r_false=False, *args, **kwargs):
   """
   The data argument should be a string in JSON format that contains one or
   more JSON objects. The fields should be a named field in those objects.
@@ -252,7 +253,9 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
   xfieldj(testjson,'ix',random.choice); 
   """
   if(as_is): return(data)
-  if(data in ['',None]): return('')
+  if(data in ['',None]): 
+    if(nulls_r_false): return(False)
+    else: return('')
   # TODO: return malformed json as_is for the user to figure out? Perhaps if debug is enabled?
   unpdat = json.loads(data)
   # right now unpdat is a dict of dicts, so it's unordered and yet it might matter in which order 
@@ -263,7 +266,6 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
   dkeys.sort(key=int)
   # and now we turn unpdat into a list of dicts, with the same order as that of the original entries
   unpdat = [unpdat[ii] for ii in dkeys]
-  # notice that we wrap in sorted() because dicts have an undefined order
   oo = [xx.get(field,None) for xx in unpdat]
   # if a selection criterion is given, use it
   if(select != None): 
