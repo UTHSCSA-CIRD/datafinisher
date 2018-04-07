@@ -271,8 +271,14 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
     select = [bool(xx) for xx in select]
     oo = [ii for (ii,jj) in zip(oo,select) if jj]
   if(omitnull): oo = [xx for xx in oo if xx is not None]
+  import pdb; pdb.set_trace()
   if(callable(transform)): oo = transform(oo,*args,**kwargs)
-  return(sep.join(set(oo)))
+  try:
+    iter(oo)
+    oo = sep.join(set(oo))
+    return(oo)
+  except:
+    return(oo)
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:

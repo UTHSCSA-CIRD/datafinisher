@@ -14,17 +14,23 @@ args = parser.parse_args()
 dolog = args.log
 from df_fn import xfieldj
 
-testjson = """{"0": {"ix": 57016613993402840, "vf": null, "mc": "DX|PROF:NONPRIMARY", "cc": "GENERIC_KUH_DX_ID_2449", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "1": {"ix": 9697820316663506, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "2": {"ix": 55916360278195536, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "count": 3}"""
+testjson = """{"0": {"ix": 57016613993402840, "vf": null, "mc": "DX|PROF:NONPRIMARY", "cc": "GENERIC_KUH_DX_ID_2449", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": 456, "qt": null}, "1": {"ix": 9697820316663506, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "2": {"ix": 55916360278195536, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": 123, "qt": null}, "count": 3}"""
 
-testargs = {'num_ix': {'field':'ix','transform':len},'any_vf': {'field':'vf','transform':any}
-	    ,'encdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DiagObs:PAT_ENC_DX'}
-	    ,'npdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DX|PROF:NONPRIMARY'}
-	    ,'any_cc':{'field':'cc','transform':any}
-	    ,'max_st':{'field':'st','transform':max}
-	    ,'min_st':{'field':'st','transform':min}
-	    ,'first_un':{'field':'un','transform':lambda xx: [kk for kk in xx if kk is not None][0] if any(xx) else None}
-	    #,'':{'field':'','transform':None}
-	    ,}
+testargs = {
+  'as_is' : {'as_is' : True}
+  ,'concat_unique' : {'field':'cc'}
+  ,'last_numeric':{'field':'nv','transform':lambda xx: xx.pop()}
+  ,'true_false':{'field':'cc','transform':any}
+  #,'':{'field':'','transform':None}
+  ,'num_ix': {'field':'ix','transform':len}
+  ,'any_vf': {'field':'vf','transform':any}
+  ,'encdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DiagObs:PAT_ENC_DX'}
+  ,'npdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DX|PROF:NONPRIMARY'}
+  ,'max_st':{'field':'st','transform':max}
+  ,'min_st':{'field':'st','transform':min}
+  ,'first_un':{'field':'un','transform':lambda xx: [kk for kk in xx if kk is not None][0] if any(xx) else None}
+  #,'':{'field':'','transform':None}
+  ,}
 
 """
 Note: the following works:
@@ -32,6 +38,7 @@ Note: the following works:
 xfieldj(testjson,**testargs['match_mc'])
 
 TODO: What if the data argument is None or not JSON?
+TODO: On the df.py side, create an extra concept_cd||modifier_cd field
 TODO: Iterate over a list of extractors for the same cell.
 TODO: Have a list of lists of extractors and iterate over it for a line, returning the raw values for cells
       that are not JSON objects
