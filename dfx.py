@@ -17,20 +17,29 @@ from df_fn import xfieldj
 testjson = """{"0": {"ix": 57016613993402840, "vf": null, "mc": "DX|PROF:NONPRIMARY", "cc": "GENERIC_KUH_DX_ID_2449", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": 456, "qt": null}, "1": {"ix": 9697820316663506, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": null, "qt": null}, "2": {"ix": 55916360278195536, "vf": null, "mc": "DiagObs:PAT_ENC_DX", "cc": "GENERIC_KUH_DX_ID_78949", "cf": null, "lc": null, "st": "2012-07-11", "un": null, "vt": null, "tc": null, "nv": 123, "qt": null}, "count": 3}"""
 
 testargs = {
-  'as_is' : {'as_is' : True}
+  'as_is' : {'field':'','as_is' : True}
   ,'concat_unique' : {'field':'cc'}
   ,'last_numeric':{'field':'nv','transform':lambda xx: xx.pop()}
+  ,'last_unique':{'field':'cc','transform':lambda xx: xx.pop()}
   ,'true_false':{'field':'cc','transform':any}
+  ,'tf_activediag':{'field':'cc','transform':any
+		    ,'select':lambda xx: [kk not in ('DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2') for kk in xx]
+		    ,'nulls_r_false': True}
+  ,'tf_inactivediag':{'field':'cc','transform':any
+		      ,'select':lambda xx: [kk in ('DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2') for kk in xx]
+		      ,'nulls_r_false': True}
   #,'':{'field':'','transform':None}
-  ,'num_ix': {'field':'ix','transform':len}
-  ,'any_vf': {'field':'vf','transform':any}
-  ,'encdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DiagObs:PAT_ENC_DX'}
-  ,'npdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DX|PROF:NONPRIMARY'}
-  ,'max_st':{'field':'st','transform':max}
-  ,'min_st':{'field':'st','transform':min}
-  ,'first_un':{'field':'un','transform':lambda xx: [kk for kk in xx if kk is not None][0] if any(xx) else None}
+  #,'num_ix': {'field':'ix','transform':len}
+  #,'any_vf': {'field':'vf','transform':any}
+  #,'encdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DiagObs:PAT_ENC_DX'}
+  #,'npdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DX|PROF:NONPRIMARY'}
+  #,'max_st':{'field':'st','transform':max}
+  #,'min_st':{'field':'st','transform':min}
+  #,'first_un':{'field':'un','transform':lambda xx: [kk for kk in xx if kk is not None][0] if any(xx) else None}
   #,'':{'field':'','transform':None}
   ,}
+
+# non active diags: ('DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2')
 
 """
 Note: the following works:
@@ -86,7 +95,7 @@ def main(csvin):
     # append the old meta to the newmeta
     newmeta.append(meta[ii])
   # iterate over the other rows and process them, using the respective values in mytemplate
-  # TODO: update testargs with the intended values for: as_is, concat_unique, last_numeric, last_unique
+  # DONE: update testargs with the intended values for: as_is, concat_unique, last_numeric, last_unique
   #       true_false, true_false_active
   # TODO: actually start processing the rows!
   # TODO: multiple extractors for one field
@@ -95,6 +104,8 @@ def main(csvin):
   # create an object with args for each column and iterate over it
   # write the processed rows to the outfile
   import pdb; pdb.set_trace()
+  #import pdb; pdb.run("xfieldj(testjson,'cc',select=lambda xx: [ii == 'DiagObs:MEDICAL_HX' for ii in xx if ii != 'count'])")
+  #import pdb; pdb.run("xfieldj(testjson,'cc',transform=lambda xx: xx.pop())")
 
 if __name__ == '__main__':
     outfile = args.outfile
