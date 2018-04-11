@@ -71,13 +71,33 @@ def main(csvin):
   # read the csvin file
   inhandle = open(csvin,'r')
   fr = csv.reader(inhandle)
+  # first row: header
   myheader = fr.next()
+  # second row: metadata (in string form)
   rawmeta = fr.next()
+  # number of columns in the input data
+  rawncols = len(rawmeta)
   # get the header
   # parse the first row
   # TODO: for more robustness, try json.loads and return empty string if failed
-  meta = [json.loads(xx) if xx not in ('',None) else '' for xx in rawmeta]
-  ncols = len(meta)
+  meta = []
+  # first we unpack the metadata 
+  for ii in range(0,rawncols):
+    # if the column begins with an empty cell we assume it was dynamically added
+    # and we exclude it from the output (we re-create dynamic columns each time)
+    if rawmeta[ii] in ('',None):
+      meta.append({"extractor": [["skip", "skip"]]})
+    else:
+      try:
+	# otherwise, we try to parse it as JSON
+	meta.append(json.loads(rawmeta[ii]))
+      except:
+	# if it's not valid JSON, that colum is marked for being returned in its raw form
+	meta.append({"extractor": [["as_is", ""]], "longname": myheader[ii], "pervisit": 1
+	      , "ddomain": "builtin"})
+  import pdb; pdb.set_trace()
+  #meta = [json.loads(xx) if xx not in ('',None) else '' for xx in rawmeta]
+  #ncols = len(meta)
   newheader = []
   newmeta = []
   mytemplate = [] # this will be where we put arguments to xfieldj
@@ -108,6 +128,13 @@ def main(csvin):
   # DONE: multiple extractors for one field
   # DONE: create the new first row for the output, with the non-meta columns having null values 
   #       or something
+  # 
+  # open outfile for writing
+  # write new header
+  # write new line0
+  # while lineX = fr.next():
+  #  csv.write(for ii in linex, extractor in zip(...) if extractor != 'skip')
+  # close input file and output file
   row0 = fr.next()
   # create an object with args for each column and iterate over it
   # write the processed rows to the outfile
