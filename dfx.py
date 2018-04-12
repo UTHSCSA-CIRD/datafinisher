@@ -62,6 +62,13 @@ TODO: Figure out best way to hand over fresh output file from df.py directly to 
 TODO: Start chopping out the no longer needed stuff from df.py
 """
 
+# frequently used boiler-plate extractor definitions
+# this one for dynamically generated columns that should be skipped
+xtrskip = {"extractor": [["skip", "skip"]]}
+# this one for static columns to preserve as-is
+xtrasis = {"extractor": [["as_is", ""]], "basename": "", "pervisit": 1
+	      , "ddomain": "builtin"}
+
 def main(csvin):
   # get arguments needed to create output file
   mydir = path.dirname(csvin)
@@ -85,22 +92,20 @@ def main(csvin):
   for ii in range(0,rawncols):
     # if the column begins with an empty cell we assume it was dynamically added
     # and we exclude it from the output (we re-create dynamic columns each time)
-    if rawmeta[ii] in ('',None):
-      meta.append({"extractor": [["skip", "skip"]]})
+    if rawmeta[ii] in ('',None): meta.append(xtrskip)
     else:
-      try:
-	# otherwise, we try to parse it as JSON
-	meta.append(json.loads(rawmeta[ii]))
-      except:
+      xtrasis['basename'] = myheader[ii]
+      if rawmeta[ii] == '0': meta.append(xtrasis)
+      else: # otherwise, we try to parse it as JSON
+	try: meta.append(json.loads(rawmeta[ii]))
 	# if it's not valid JSON, that colum is marked for being returned in its raw form
-	meta.append({"extractor": [["as_is", ""]], "longname": myheader[ii], "pervisit": 1
-	      , "ddomain": "builtin"})
+	except: meta.append(xtrasis)
+  mytemplate =  [xx['extractor'][0][0] for xx in meta]
   import pdb; pdb.set_trace()
   #meta = [json.loads(xx) if xx not in ('',None) else '' for xx in rawmeta]
   #ncols = len(meta)
   newheader = []
   newmeta = []
-  mytemplate = [] # this will be where we put arguments to xfieldj
   for ii in range(0,ncols): 
     # for all the inherently as-is fields...
     if(meta[ii] != '' and (len(meta[ii]['extractor'])>1 or meta[ii]['extractor'][0][0]!='as_is')):
@@ -108,8 +113,6 @@ def main(csvin):
       # columns to it separated by a period, so 'v0t39_Bd_Ms_Indx' becomes 'v039_Bd_Ms_Indx.default' 
       # for example
       newheader.extend([(myheader[ii]+'.%s') % kk for kk in [jj[1] for jj in meta[ii]['extractor']]])
-      # and this one extends a list of names of argument-sets for xfieldj
-      mytemplate.append([jj[0] for jj in meta[ii]['extractor']]+['as_is'])
       # extend the length of newmeta by the same number of empty cells as how many new columns have
       # been added just now
       newmeta.extend([''] * (len(newheader)-len(newmeta)))
