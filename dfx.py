@@ -100,14 +100,23 @@ def main(csvin):
 	try: meta.append(json.loads(rawmeta[ii]))
 	# if it's not valid JSON, that colum is marked for being returned in its raw form
 	except: meta.append(xtrasis)
-  mytemplate =  [xx['extractor'][0][0] for xx in meta]
+  #mytemplate =  [xx['extractor'][0][0] for xx in meta]
   import pdb; pdb.set_trace()
   #meta = [json.loads(xx) if xx not in ('',None) else '' for xx in rawmeta]
   #ncols = len(meta)
   newheader = []
   newmeta = []
+  mytemplate = []
   for ii in range(0,ncols): 
+    extr = [jj for jj in meta[ii]['extractor'] if jj != 'skip']
+    # if extr == [] : append ['skip',''] to template, nothing to newmeta and newheader
+    # else 
+    # if 'as-is' not in extr, append it
+    # append extr to mytemplate
     # for all the inherently as-is fields...
+    # for(kk in extr): if kk == 'as-is' generate a header and append to newheader, append rawmeta[ii] to meta
+    # else: generate list of headers and extend to newheader, extend [None]*(len(extr)-1) to newmeta
+    #       and then append rawmeta[ii] to newmeta
     if(meta[ii] != '' and (len(meta[ii]['extractor'])>1 or meta[ii]['extractor'][0][0]!='as_is')):
       # all the below does is take the base name from the header and append the name(s) of the derived 
       # columns to it separated by a period, so 'v0t39_Bd_Ms_Indx' becomes 'v039_Bd_Ms_Indx.default' 
