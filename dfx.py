@@ -134,7 +134,8 @@ def main(csvin):
       for jj in mytemplate[ii]:
 	if(jj[0] != 'skip'):
 	  lineout.append(xfieldj(linein[ii],**testargs[jj[0]]))
-    import pdb; pdb.set_trace()
+	  if(len(lineout) == 55):
+	    import pdb; pdb.set_trace()
     # for all the inherently as-is fields...
     # for(kk in extr): if kk == 'as-is' generate a header and append to newheader, append rawmeta[ii] to meta
     # else: generate list of headers and extend to newheader, extend [None]*(len(extr)-1) to newmeta
