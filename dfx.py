@@ -134,8 +134,8 @@ def main(csvin):
       for jj in mytemplate[ii]:
 	if(jj[0] != 'skip'):
 	  lineout.append(xfieldj(linein[ii],**testargs[jj[0]]))
-	  if(len(lineout) == 55):
-	    import pdb; pdb.set_trace()
+    fw.writerow(lineout)
+  inhandle.close(); outhandle.close();
     # for all the inherently as-is fields...
     # for(kk in extr): if kk == 'as-is' generate a header and append to newheader, append rawmeta[ii] to meta
     # else: generate list of headers and extend to newheader, extend [None]*(len(extr)-1) to newmeta
@@ -170,10 +170,10 @@ def main(csvin):
   # while lineX = fr.next():
   #  csv.write(for ii in linex, extractor in zip(...) if extractor != 'skip')
   # close input file and output file
-  row0 = fr.next()
+  #row0 = fr.next()
   # create an object with args for each column and iterate over it
   # write the processed rows to the outfile
-  import pdb; pdb.set_trace()
+  #import pdb; pdb.set_trace()
   #import pdb; pdb.run("xfieldj(testjson,'cc',select=lambda xx: [ii == 'DiagObs:MEDICAL_HX' for ii in xx if ii != 'count'])")
   #import pdb; pdb.run("xfieldj(testjson,'cc',transform=lambda xx: xx.pop())")
 
