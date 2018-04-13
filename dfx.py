@@ -76,8 +76,8 @@ def main(csvin):
   filebase,filext = path.splitext(path.basename(csvin))
   fileout = path.join(mydir,(filebase+outsuffix+filext))
   # read the csvin file
-  inhandle = open(csvin,'r')
-  fr = csv.reader(inhandle)
+  inhandle = open(csvin,'r'); outhandle = open(fileout,'w')
+  fr = csv.reader(inhandle); fw = csv.writer(outhandle)
   # first row: header
   myheader = fr.next()
   # second row: metadata (in string form)
@@ -95,44 +95,66 @@ def main(csvin):
     if rawmeta[ii] in ('',None): meta.append(xtrskip)
     else:
       xtrasis['basename'] = myheader[ii]
-      if rawmeta[ii] == '0': meta.append(xtrasis)
+      if rawmeta[ii] == '0': meta.append(xtrasis.copy())
       else: # otherwise, we try to parse it as JSON
 	try: meta.append(json.loads(rawmeta[ii]))
 	# if it's not valid JSON, that colum is marked for being returned in its raw form
-	except: meta.append(xtrasis)
-  #mytemplate =  [xx['extractor'][0][0] for xx in meta]
-  import pdb; pdb.set_trace()
-  #meta = [json.loads(xx) if xx not in ('',None) else '' for xx in rawmeta]
-  #ncols = len(meta)
+	except: meta.append(xtrasis.copy())
+  ncols = len(meta)
   newheader = []
   newmeta = []
   mytemplate = []
+  # for each of the INPUT columns
   for ii in range(0,ncols): 
-    extr = [jj for jj in meta[ii]['extractor'] if jj != 'skip']
+    # append the list of extractors to the list of lists of extractors 'meta'
+    # it should be of length 'ncols'
+    extr = [jj for jj in meta[ii]['extractor']]
     # if extr == [] : append ['skip',''] to template, nothing to newmeta and newheader
-    # else 
-    # if 'as-is' not in extr, append it
-    # append extr to mytemplate
+    mytemplate.append(extr)
+    if(extr!=[['skip','skip']]): 
+      if('as_is' not in [jj[0] for jj in extr]): extr.append(['as_is',''])
+      # iterate over each PAIR of extractor name [0] and header suffix [1] in the extr list
+      for jj in extr:
+	# the newheader will be the length of the original number of columns, minus the skip columns
+	# but plus all the non as_is columns
+	newheader.append(meta[ii]['basename']+jj[1])
+	# only two things get added to newmeta: None's (for dynamically generated new columns) and
+	# verbatim copies of whatever was already there (rawmeta[ii]).
+	if(jj[0] != 'as_is'): newmeta.append(None)
+	else: newmeta.append(rawmeta[ii])
+  # Now we have newheader and newmeta along with mytemplate which will direct the extraction of each subsequent
+  # line of data.
+  
+  # First write out the new header and metadata
+  fw.writerow(newheader)
+  fw.writerow(newmeta)
+  for linein in fr:
+    lineout = []
+    for ii in range(0,ncols):
+      for jj in mytemplate[ii]:
+	if(jj[0] != 'skip'):
+	  lineout.append(xfieldj(linein[ii],**testargs[jj[0]]))
+    import pdb; pdb.set_trace()
     # for all the inherently as-is fields...
     # for(kk in extr): if kk == 'as-is' generate a header and append to newheader, append rawmeta[ii] to meta
     # else: generate list of headers and extend to newheader, extend [None]*(len(extr)-1) to newmeta
     #       and then append rawmeta[ii] to newmeta
-    if(meta[ii] != '' and (len(meta[ii]['extractor'])>1 or meta[ii]['extractor'][0][0]!='as_is')):
+    #if(meta[ii] != '' and (len(meta[ii]['extractor'])>1 or meta[ii]['extractor'][0][0]!='as_is')):
       # all the below does is take the base name from the header and append the name(s) of the derived 
       # columns to it separated by a period, so 'v0t39_Bd_Ms_Indx' becomes 'v039_Bd_Ms_Indx.default' 
       # for example
-      newheader.extend([(myheader[ii]+'.%s') % kk for kk in [jj[1] for jj in meta[ii]['extractor']]])
+      #newheader.extend([(myheader[ii]+'.%s') % kk for kk in [jj[1] for jj in meta[ii]['extractor']]])
       # extend the length of newmeta by the same number of empty cells as how many new columns have
       # been added just now
-      newmeta.extend([''] * (len(newheader)-len(newmeta)))
-    else: mytemplate.append(['as_is',])
+      #newmeta.extend([''] * (len(newheader)-len(newmeta)))
+    #else: mytemplate.append(['as_is',])
     # the below applies to all columns whether as_is or not
     # now add on the original base name for that series of columns
-    newheader.append(myheader[ii])
+    #newheader.append(myheader[ii])
     # and an as_is so the meta field gets preserved in the output
     #mytemplate.append(['as_is',])
     # append the old meta to the newmeta
-    newmeta.append(meta[ii])
+    #newmeta.append(meta[ii])
   # iterate over the other rows and process them, using the respective values in mytemplate
   # DONE: update testargs with the intended values for: as_is, concat_unique, last_numeric, last_unique
   #       true_false, true_false_active
