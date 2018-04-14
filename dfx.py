@@ -48,29 +48,33 @@ Note: the following works:
 
 xfieldj(testjson,**testargs['match_mc'])
 
-TODO: What if the data argument is --None-- or not JSON?
+TODO: implement reading of explicit column configuration file
 TODO: On the df.py side, create an extra concept_cd||modifier_cd field
+TODO: On the df.py side, do the concept code collapsing using concept_dimension
+TODO: On the df.py side, do modifier mapping 
+TODO: Figure out best way to hand over fresh output file from df.py directly to dfx.py
+TODO: Start chopping out the no longer needed stuff from df.py
+TODO: some kind of progress indicator so we can tell that dfx.py is not hung
+DONE: What if the data argument is --None-- or not JSON?
 DONE: Iterate over a list of extractors for the same cell.
-TODO: Have a list of lists of extractors and iterate over it for a line, returning the raw values for cells
+DONE: Have a list of lists of extractors and iterate over it for a line, returning the raw values for cells
       that are not JSON objects
 DONE: Store the extractors in one dict per cell, with the dicts in a list with the same number of rows as 
       there are columns in the input data
-TODO: Populate such a list from JSON strings in the first row of the input data and a set of rules for which
+DONE: Populate such a list from JSON strings in the first row of the input data and a set of rules for which
       default extractor goes with which set of conditions (and which extractors are invalid for which 
       conditions)
-TODO: Generate the JSON strings in df.py by reading the data dictionary.
-TODO: Figure out best way to hand over fresh output file from df.py directly to dfx.py
-TODO: Start chopping out the no longer needed stuff from df.py
+DONE: Generate the JSON strings in df.py by reading the data dictionary.
+DONE: update testargs with the intended values for: as_is, concat_unique, last_numeric, last_unique
+      true_false, true_false_active
+DONE: actually start processing the rows!
+DONE: multiple extractors for one field
+DONE: create the new first row for the output, with the non-meta columns having null values 
+      or something
+DONE: for more robustness, try json.loads and return empty string if failed
 """
 
-# frequently used boiler-plate extractor definitions
-# this one for dynamically generated columns that should be skipped
-xtrskip = {"extractor": [["skip", "skip"]]}
-# this one for static columns to preserve as-is
-xtrasis = {"extractor": [["as_is", ""]], "basename": "", "pervisit": 1
-	      , "ddomain": "builtin"}
-
-def main(csvin):
+def update_df(csvin):
   # get arguments needed to create output file
   mydir = path.dirname(csvin)
   outsuffix = '.out'
@@ -85,57 +89,20 @@ def main(csvin):
   rawmeta = fr.next()
   # number of columns in the input data
   rawncols = len(rawmeta)
-  # get the header
-  # parse the first row
-  # TODO: for more robustness, try json.loads and return empty string if failed
-  # first we unpack the metadata 
-  '''
-  for ii in range(0,rawncols):
-    # if the column begins with an empty cell we assume it was dynamically added
-    # and we exclude it from the output (we re-create dynamic columns each time)
-    if rawmeta[ii] in ('',None): meta.append(xtrskip)
-    else:
-      xtrasis['basename'] = myheader[ii]
-      if rawmeta[ii] == '0': meta.append(xtrasis.copy())
-      else: # otherwise, we try to parse it as JSON
-	try: meta.append(json.loads(rawmeta[ii]))
-	# if it's not valid JSON, that colum is marked for being returned in its raw form
-	except: meta.append(xtrasis.copy())
-	'''
+  # unpack the metadata 
   template = [xmetaj(xx[0],xx[1]) for xx in zip(rawmeta,myheader)]
   ncols = len(template)
   newhead = [] # the actual header to write to the output file
   [[newhead.append(jj[1]) for jj in ii] for ii in template]
   newmeta = [] # the actual first row to write to the output file
   [[newmeta.append(jj[2]) for jj in ii] for ii in template]
-  '''
-  Commenting this section out as obsoleted, soon to be deleted
-  # for each of the INPUT columns
-  for ii in range(0,ncols): 
-    # append the list of extractors to the list of lists of extractors 'meta'
-    # it should be of length 'ncols'
-    extr = [jj for jj in meta[ii]['extractor']]
-    # if extr == [] : append ['skip',''] to template, nothing to newmeta and newheader
-    mytemplate.append(extr)
-    if(extr!=[['skip','skip']]): 
-      if('as_is' not in [jj[0] for jj in extr]): extr.append(['as_is',''])
-      # iterate over each PAIR of extractor name [0] and header suffix [1] in the extr list
-      for jj in extr:
-	# the newheader will be the length of the original number of columns, minus the skip columns
-	# but plus all the non as_is columns
-	newheader.append(meta[ii]['basename']+jj[1])
-	# only two things get added to newmeta: None's (for dynamically generated new columns) and
-	# verbatim copies of whatever was already there (rawmeta[ii]).
-	if(jj[0] != 'as_is'): newmeta.append(None)
-	else: newmeta.append(rawmeta[ii])
-  '''
-  # Now we have newheader and newmeta along with mytemplate which will direct the extraction of each subsequent
-  # line of data.
-  
-  # First write out the new header and metadata
+  # Now we have newheader and newmeta along with mytemplate which will direct 
+  # the extraction of each subsequent line of data.
+  # Write them out to the output file
   fw.writerow(newhead)
   fw.writerow(newmeta)
-  import pdb; pdb.set_trace()
+  # Process each line of input and write it to the output following the 
+  # guidance of the template
   for linein in fr:
     lineout = []
     for ii in range(0,ncols):
@@ -144,50 +111,10 @@ def main(csvin):
 	  lineout.append(xfieldj(linein[ii],**testargs[jj[0]]))
     fw.writerow(lineout)
   inhandle.close(); outhandle.close();
-    # for all the inherently as-is fields...
-    # for(kk in extr): if kk == 'as-is' generate a header and append to newheader, append rawmeta[ii] to meta
-    # else: generate list of headers and extend to newheader, extend [None]*(len(extr)-1) to newmeta
-    #       and then append rawmeta[ii] to newmeta
-    #if(meta[ii] != '' and (len(meta[ii]['extractor'])>1 or meta[ii]['extractor'][0][0]!='as_is')):
-      # all the below does is take the base name from the header and append the name(s) of the derived 
-      # columns to it separated by a period, so 'v0t39_Bd_Ms_Indx' becomes 'v039_Bd_Ms_Indx.default' 
-      # for example
-      #newheader.extend([(myheader[ii]+'.%s') % kk for kk in [jj[1] for jj in meta[ii]['extractor']]])
-      # extend the length of newmeta by the same number of empty cells as how many new columns have
-      # been added just now
-      #newmeta.extend([''] * (len(newheader)-len(newmeta)))
-    #else: mytemplate.append(['as_is',])
-    # the below applies to all columns whether as_is or not
-    # now add on the original base name for that series of columns
-    #newheader.append(myheader[ii])
-    # and an as_is so the meta field gets preserved in the output
-    #mytemplate.append(['as_is',])
-    # append the old meta to the newmeta
-    #newmeta.append(meta[ii])
-  # iterate over the other rows and process them, using the respective values in mytemplate
-  # DONE: update testargs with the intended values for: as_is, concat_unique, last_numeric, last_unique
-  #       true_false, true_false_active
-  # TODO: actually start processing the rows!
-  # DONE: multiple extractors for one field
-  # DONE: create the new first row for the output, with the non-meta columns having null values 
-  #       or something
-  # 
-  # open outfile for writing
-  # write new header
-  # write new line0
-  # while lineX = fr.next():
-  #  csv.write(for ii in linex, extractor in zip(...) if extractor != 'skip')
-  # close input file and output file
-  #row0 = fr.next()
-  # create an object with args for each column and iterate over it
-  # write the processed rows to the outfile
-  #import pdb; pdb.set_trace()
-  #import pdb; pdb.run("xfieldj(testjson,'cc',select=lambda xx: [ii == 'DiagObs:MEDICAL_HX' for ii in xx if ii != 'count'])")
-  #import pdb; pdb.run("xfieldj(testjson,'cc',transform=lambda xx: xx.pop())")
 
 if __name__ == '__main__':
     outfile = args.outfile
     # TODO: fix this path-unaware file name generator
     if outfile=="":
       outfile = "data_"+args.csvin
-    main(args.csvin)
+    update_df(args.csvin)
