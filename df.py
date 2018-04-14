@@ -4,7 +4,7 @@ usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] 
     
 """
 
-import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
+import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb,json
 from os.path import dirname,basename
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
@@ -343,7 +343,22 @@ def main(cnx,fname,style,dtcp,mincnt):
     # here are the columns we keep
     # TODO: write dyncnts to df_dynsql table
     keepdynames = [ii[0] for ii in zip(dynames,dycnts) if ii[1] > mincnt]
-    
+    # values for the first row of output, first the static columns without JSON
+    # use '---' if neither of the below apply
+    outputmeta = ['---' if kk in stnames else kk 
+		  # use 0 for numeric columns
+		  for kk in [0 if '_days' in jj else jj 
+	       # use current date for date columns
+	       for jj in [time.strftime('%Y-%m-%d',time.gmtime()) if '_date' in ii else ii 
+		   for ii in stnames]]]
+    # field names for the JSON values
+    jfields = [ii[1] for ii in logged_execute(cnx,"pragma table_info(df_dtdict)").fetchall()]
+    # use jfields to generate dicts, convert them to JSON strings, and extend this list onto
+    # outputmeta
+    outputmeta.extend([json.dumps(yy)
+	     for yy in [dict(zip(jfields,xx)) 
+		 for xx in logged_execute(cnx,'select * from df_dtdict').fetchall()] 
+	     if yy['colid'] in keepdynames])
     #vcrs = cnx.execute(
     #  "select "+",".join(
 	 #[ii[0] for ii in cnx.execute(
@@ -351,7 +366,7 @@ def main(cnx,fname,style,dtcp,mincnt):
 	 #).fetchall()])+" from fulloutput")
     # get column names
     # vnms = [ii[0] for ii in vcrs.description]
-    # pdb.set_trace()
+    pdb.set_trace()
     
     # i.e. to not create a .csv file, pass 'none' in the -v argument
     if fname.lower() != 'none':
@@ -359,6 +374,7 @@ def main(cnx,fname,style,dtcp,mincnt):
       finalnames = stnames + keepdynames
       # below line generates the CSV header row
       csv.writer(ff).writerow(finalnames)
+      csv.writer(ff).writerow(outputmeta)
       # fetch the final data 
       result = logged_execute(
 	cnx, "select {0} from {1}".format(
