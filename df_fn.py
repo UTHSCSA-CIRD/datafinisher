@@ -227,6 +227,14 @@ def dropletters(intext):
 # Functions used in df.py directly                                            #
 ###############################################################################
 
+### for json parsing ###
+
+def xmetaj(data,header,rules,chosen):
+  # if empty ruleslist = [skip], header='', meta = ''
+  # convert to JSON
+  # except: ruleslist = [as_is], header=current header, meta = data
+  None
+
 def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, as_is=False
 	    , nulls_r_false=False, *args, **kwargs):
   """
@@ -290,6 +298,8 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
     return(oo)
   except:
     return(oo)
+  
+### end JSON parsing ###
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
