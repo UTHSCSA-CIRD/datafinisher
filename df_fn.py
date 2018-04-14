@@ -8,6 +8,11 @@ if cwd == '': cwd = '.'
 # not the user wants verbose logging
 from df import dolog
 
+# a configuration-like object where all the rules are defined-- what patterns
+# to look for in the JSON fields and what extractors and names to return for
+# each pattern
+from rules import rules
+
 # useful lists
 # columns that may affect the interpretation of the data
 cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
@@ -229,11 +234,44 @@ def dropletters(intext):
 
 ### for json parsing ###
 
-def xmetaj(data,header,rules,chosen):
-  # if empty ruleslist = [skip], header='', meta = ''
-  # convert to JSON
-  # except: ruleslist = [as_is], header=current header, meta = data
-  None
+def xmetaj(data,header,rules=rules,chosen=0):
+  # note: data and header are both character values (not lists)
+  # returns a list containing at least one list. This inner list
+  # has 3 values in the following order: extractor name, header, and metadata
+  # a missing value in the meta row is interpreted as being dynamically generated
+  # and so is marked for skipping (because presumably it will be re-generated)
+  # to override this behavior, just make the value not null in the input file
+  if data in ('',None): return([['skip','','']])
+  # Now we try to crudely pre-filter stuff that isn't properly formatted JSON
+  # data wrapped in str() to avoid errors from numeric values 
+  #if data in (0,'---'): return([['as_is',header,data]])
+  if not re.match('^\{.*\}$',str(data)): return([['as_is',header,data]])
+  # now we try to parse it
+  try: jdata = json.loads(data)
+  # if parsing fails we fall back on treating it as a static column
+  except: return([['as_is',header,data]])
+  for xx in rules:
+    if eval(xx['criteria'],jdata):
+      outextr = [yy[0] for yy in xx['extractors']]
+      outhead = [yy[1].format(jdata['colid'],jdata['colcd']) for yy in xx['extractors']]
+      outmeta = [None] * len(outextr)
+      if 'as_is' in outextr:
+	# if for some reason the rules already create an as_is column, use that one
+	# trust whatever the value for the header is, and the only thing needing to
+	# change is the meta column which will be this one
+	outmeta[outextr.index('as_is')] = data
+      else:
+	# otherwise we will need to tack one one (this time to each of the lists)
+	# ...so that we preserve the meta data in the output for next time it needs
+	# to be reorganized by the user
+	outextr += ['as_is']
+	outhead += [header]
+	outmeta += [data]
+      return(zip(outextr,outhead,outmeta))
+  # if values are chosen for this column already, return those and nulls/data as meta
+  # extract all values from data
+  # iterate over the rules until one matches
+  # return that rule's extractors, construct header, and nulls/data as meta
 
 def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, as_is=False
 	    , nulls_r_false=False, *args, **kwargs):
