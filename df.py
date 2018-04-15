@@ -71,6 +71,8 @@ def main(cnx,fname,style,dtcp,mincnt):
     # for ICD9 codes embedded in paths
     #icd9grep = '.*\\\\([VE0-9]{3}(\\.[0-9]{0,2}){0,1})\\\\.*'
     icd9grep = '\\\\(V0{0,1}\d{2}|V0{0,1}\d{2}\.\d{1,2}|\d{3}|\d{3}\.\d{1,2}|E\d{3}|E\d{3}\.\d{1,2})\\\\'
+    icd9grepshort = '\\\\(V0?\d{2}|V0?\d{2}\.\d{1,2}|\d{3}|\d{3}\.\d{1,2}|E\d{3}|E\d{3}\.\d{1,2})\\\\'
+    icd10grep = '\\\\([A-TV-Z][0-9][A-Z0-9](\.?[A-Z0-9]{0,4})?)\\\\'
     # for ICD9 codes embedded in i2b2 CONCEPT_CD style codes
     icd9grep_c = '^ICD9:([VE0-9]{3}(\\.[0-9]{0,2}){0,1})$'
     # for LOINC codes embedded in paths
@@ -137,6 +139,8 @@ def main(cnx,fname,style,dtcp,mincnt):
     # the CDID table maps concept codes (CCD) to variable id (ID) to 
     # data domain (DDOMAIN) to concept path (CPATH)
     logged_execute(cnx, par['create_codeid_tmp'])
+    logged_execute(cnx, par['create_codeid_displayfix'])
+    import pdb; pdb.set_trace()
     tprint("created df_codeid_tmp table",tt);tt = time.time()
     
     # Now we will replace the EHR-specific concept paths simply with the most 
