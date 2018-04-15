@@ -139,6 +139,10 @@ def main(cnx,fname,style,dtcp,mincnt):
     # the CDID table maps concept codes (CCD) to variable id (ID) to 
     # data domain (DDOMAIN) to concept path (CPATH)
     logged_execute(cnx, par['create_codeid_tmp'])
+    logged_execute(cnx, "update df_codeid_tmp set display_code = grs('"+icd9grep+"',cpath) where display_code like '\i2b2\Diagnoses\ICD9\%'")
+    logged_execute(cnx, "update df_codeid_tmp set display_code = grs('"+icd10grep+"',cpath) where display_code like '\i2b2\Diagnoses\ICD10\%'")
+    logged_execute(cnx, "update df_codeid_tmp set display_code = ccd where length(display_code) > 30 and ddomain in ('ICD10','ICD9') and ccd like 'ICD%'")
+    logged_execute(cnx, "update df_codeid_tmp set display_code = name_char where ddomain in ('UTHSCSA|FINCLASS','NAACCR','SEER_SITE','DEM|ETHNICITY','DEM|VITAL','DEM|VITAL|SSA','KUH|PAT_ENC')")
     logged_execute(cnx, par['create_codeid_displayfix'])
     #import pdb; pdb.set_trace()
     tprint("created df_codeid_tmp table",tt);tt = time.time()
