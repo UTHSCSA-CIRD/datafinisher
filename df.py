@@ -140,7 +140,7 @@ def main(cnx,fname,style,dtcp,mincnt):
     # data domain (DDOMAIN) to concept path (CPATH)
     logged_execute(cnx, par['create_codeid_tmp'])
     logged_execute(cnx, par['create_codeid_displayfix'])
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     tprint("created df_codeid_tmp table",tt);tt = time.time()
     
     # Now we will replace the EHR-specific concept paths simply with the most 
