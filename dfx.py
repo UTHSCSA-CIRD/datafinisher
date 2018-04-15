@@ -48,6 +48,7 @@ Note: the following works:
 
 xfieldj(testjson,**testargs['match_mc'])
 
+TODO: Write the rules.py rules for active and inactive diagnoses
 TODO: implement reading of explicit column configuration file
 TODO: On the df.py side, create an extra concept_cd||modifier_cd field
 TODO: On the df.py side, do the concept code collapsing using concept_dimension
