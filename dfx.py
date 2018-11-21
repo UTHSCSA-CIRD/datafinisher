@@ -121,6 +121,6 @@ def update_df(csvin):
 if __name__ == '__main__':
     outfile = args.outfile
     # TODO: fix this path-unaware file name generator
-    if outfile=="":
-      outfile = "data_"+args.csvin
+    #if outfile=="":
+    #  outfile = "data_"+args.csvin
     update_df(args.csvin)
