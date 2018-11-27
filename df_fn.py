@@ -15,15 +15,20 @@ from rules import rules
 
 # useful lists
 # columns that may affect the interpretation of the data
-cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char','valueflag_cd','quantity_num','units_cd','location_cd','confidence_num'];
+cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char'
+		,'valueflag_cd','quantity_num','units_cd','location_cd'
+		,'confidence_num'];
 cols_patdim = ['birth_date','sex_cd','language_cd','race_cd'];
-cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std','presuffix','suffix','concode','rule','grouping','subgrouping','in_use','criterion'];
+cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std'
+	      ,'presuffix','suffix','concode','rule','grouping','subgrouping'
+	      ,'in_use','criterion'];
 # the columns to pull (from df_dynsql) to create the data dictionary file
 cols_meta = ['colname', 'colname_long', 'rule'];
 
 ###############################################################################
 # Functions and methods to use within SQLite                                  #
 ###############################################################################
+#section python_udf
 
 # aggregator useful for generating SQL
 class sqlaggregate:
@@ -228,11 +233,15 @@ def shortenwords(words,limit):
 def dropletters(intext):
   return re.sub(r"([a-z_ ])\1",r"\1",re.sub("\B[aeiouyAEIOUY]+","",re.sub("[^a-zA-Z _]"," ", intext)))
 
+#end_section python_udf
+
+
 ###############################################################################
 # Functions used in df.py directly                                            #
 ###############################################################################
 
-### for json parsing ###
+### for json parsing 
+#section json
 
 def xmetaj(data,header,rules=rules,chosen=0):
   # note: data and header are both character values (not lists)
@@ -281,6 +290,7 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
   If transform is None, a list of values is returned, otherwise transform
   is first applied to it, and should be a function, which could be an
   aggregation function.
+  TODO: transform should be a separate step in the chain?
   
   All of the following work (of course for other fields than 'ix' also:
   
@@ -338,6 +348,7 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
     return(oo)
   
 ### end JSON parsing ###
+#end_section json
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
@@ -377,6 +388,7 @@ def cleanup(cnx):
 ################################################################################
 # Custom class methods                                                         #
 ################################################################################
+#section subsectionconfig
 # returns a dictionary of name:value pairs for an entire section
 # sort of like ConfigParser.defaults() but for any section
 # still with final failover to DEFAULT but now you can use 
@@ -409,11 +421,13 @@ def subsection(self,name='unknown',sep='_',default='unknown'):
     #basedict['suffix'] = "_"+suffix
   #else: basedict['presuffix'] = "_"+suffix
   return basedict
+#end_section subsectionconfig
 
 """
 Dynamic SQLifier?
 """
 # should be easy to turn into aggregator UDF: just collect the args, and run ds* at the end
+#section dynsqlifier
 
 # the core function
 def ds(lval,rval=' ',lfun=' {0} ',rfun=' {0} ',op=' ',joiner=','):
@@ -457,6 +471,7 @@ def dsCond(lval,rval,joiner=' and ',op=' = ',lfun = ' {0} ',rfun=' {0} '):
   return ds(lval,rval,lfun,rfun,op,joiner);
 
 # TODO: a general-case join wrapper
+#end_section dynsqlifier
 
 
 def tprint(str,tt):
