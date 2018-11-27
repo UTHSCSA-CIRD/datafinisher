@@ -6,6 +6,8 @@ usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] 
 
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb,json
 from os.path import dirname,basename
+
+#section config
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
 cfg = ConfigParser.RawConfigParser()
@@ -33,11 +35,14 @@ dolog = args.log
 
 from df_fn import *
 
+#end_section config
 
 def main(cnx,fname,style,dtcp,mincnt):
     tt = time.time(); startt = tt
-    # declare some custom functions to use within SQL queries (awesome!)
-    # returns matching regexp if found, otherwise original string
+    
+    #section custom_functions
+    """declare some custom functions to use within SQL queries (awesome!)"""
+    #returns matching regexp if found, otherwise original string
     cnx.create_function("grs",2,ifgrp)
     # regexp replace... i.e. sed
     cnx.create_function("grsub",3,subgrp)
@@ -62,7 +67,10 @@ def main(cnx,fname,style,dtcp,mincnt):
     #cnx.create_aggregate("xgr",11,debugaggregate)
     cnx.create_aggregate("xgr",12,jsonaggregate)
     cnx.create_aggregate("sqgr",6,sqlaggregate)
+    #end_section custom_functions
     
+    #section regexps
+    """Hard-coded regexp strings for codes"""
     # TODO: this is a hardcoded dependency on LOINC and ICD9 strings in paths! 
     #       This is not an i2b2-ism, it's an EPICism, and possibly a HERONism
     #       Should be configurable!
@@ -80,15 +88,19 @@ def main(cnx,fname,style,dtcp,mincnt):
     loincgrep = '([0-9]{4,5}-[0-9])'
     # for LOINC codes embedded in i2b2 CONCEPT_CD style codes
     loincgrep_c = '^LOINC:([0-9]{4,5}-[0-9])$'
-    
+    #end_section regexps
 
-    # DONE (ticket #1): instead of relying on sqlite_denorm.sql, create the df_joinme table from inside this 
-    # script by putting the appropriate SQL commands into character strings and then passing those
-    # strings as arguments to execute() (see below for an example of cur.execute() usage (cur just happens 
-    # to be what we named the cursor object we created above, and execute() is a method that cursor objects have)
-    # DONE: create an id to concept_cd mapping table (and filtering out redundant facts taken care of here)
+    """ notes
+    DONE (ticket #1): instead of relying on sqlite_denorm.sql, create the df_joinme table from inside this 
+    script by putting the appropriate SQL commands into character strings and then passing those
+    strings as arguments to execute() (see below for an example of cur.execute() usage (cur just happens 
+    to be what we named the cursor object we created above, and execute() is a method that cursor objects have)
+    
+    DONE: create an id to concept_cd mapping table (and filtering out redundant facts taken care of here)
+    """
     # TODO: parameterize the fact-filtering
 
+    #section var_persistence
     # Variable persistence not fully implemented and this implementation might 
     # not be a good idea. If this block (through the "Uh oh...") isn't broken, 
     # ignore it for now. Ditto with datafinisher_log, but used even less.
@@ -112,11 +124,13 @@ def main(cnx,fname,style,dtcp,mincnt):
 	print "To get rid of it, do `python df.py -c dbfile`"
     else:
       print "Uh oh. Something is wrong there should not be more than one 'dtcp' entry in df_vars, debug time"
+    #end_section var_persistence
 
-    # Sooner or later we will need to write rules that make modifier codes human readable
-    # E.g.: allergies, family history. MODIFIER_DIMENSION has mappings for such codes. If 
-    # the site providing the databuilder file did not include any entries in its MODIFIER_DIMENSION
-    # we use our own, below.
+    #section modifiers
+    """Sooner or later we will need to write rules that make modifier codes human readable
+    E.g.: allergies, family history. MODIFIER_DIMENSION has mappings for such codes. If 
+    the site providing the databuilder file did not include any entries in its MODIFIER_DIMENSION
+    we use our own, below."""
     if logged_execute(cnx, "select count(*) from modifier_dimension").fetchone()[0] == 0:
       print "modifier_dimension is empty, let's fill it"
       # we load our local fallback db
@@ -126,18 +140,23 @@ def main(cnx,fname,style,dtcp,mincnt):
       # and log that we did so
       logged_execute(cnx, "insert into datafinisher_log select datetime(),'insert','modifier_dimension'")
       cnx.commit()
+    #end_section modifiers
 
     # tprint is what echoes progress to console
     tprint("initialized variables",tt);tt = time.time()
-    # df_joinme has all unique patient_num and start_date combos, and therefore it defines
-    # which rows will exist in the output CSV file. All other columns that get created
-    # will be joined to it
+    """ df_joinme has all unique patient_num and start_date combos, and 
+    therefore it defines which rows will exist in the output CSV file. All 
+    other columns that get created will be joined to it"""
+    #section joinme
     logged_execute(cnx, par['create_joinme'].format(rdst(dtcp)))
     logged_execute(cnx, "CREATE UNIQUE INDEX if not exists df_ix_df_joinme ON df_joinme (patient_num,start_date) ")
     tprint("created df_joinme table and index",tt);tt = time.time()
+    #end_section joinme
+
 
     # the CDID table maps concept codes (CCD) to variable id (ID) to 
     # data domain (DDOMAIN) to concept path (CPATH)
+    #section codeid
     logged_execute(cnx, par['create_codeid_tmp'])
     logged_execute(cnx, "update df_codeid_tmp set display_code = grs('"+icd9grep+"',cpath) where display_code like '\i2b2\Diagnoses\ICD9\%'")
     logged_execute(cnx, "update df_codeid_tmp set display_code = grs('"+icd10grep+"',cpath) where display_code like '\i2b2\Diagnoses\ICD10\%'")
@@ -174,14 +193,17 @@ def main(cnx,fname,style,dtcp,mincnt):
     logged_execute(cnx, "drop table if exists df_codeid_tmp")
     cnx.commit()
     tprint("mapped concept codes in df_codeid",tt);tt = time.time()
+    #end_section codeid
     
+    #section obsfact
     # The create_obsfact table may make most of the views unneccessary... it did!
     logged_execute(cnx, par['create_obsfact'].format(rdst(dtcp)))
     logged_execute(cnx, "create INDEX if not exists df_ix_obs ON df_obsfact(pn,sd,concept_cd,instance_num,modifier_cd)")
     cnx.commit()
     tprint("created df_obsfact table and index",tt);tt = time.time()
+    #end_section obsfact
     
-    
+    #section rules
     # DONE: As per Ticket #19, this was changed so the rules get read 
     # in from ./ruledefs.csv and a df_rules table is created from it
     #create_ruledef(cnx, '{0}/{1}'.format(cwd, par['ruledefs']))
@@ -207,8 +229,10 @@ def main(cnx,fname,style,dtcp,mincnt):
     [cnx.execute("insert into df_rules ({0}) values (\" {1} \")".format(
       ",".join(ii.keys()),' "," '.join(ii.values()))) for ii in ruledicts if ii['in_use']=='1']
     tprint("created rule definitions",tt);tt = time.time()
+    #end_section rules
 
     # Read in and run the sql/dd.sql file
+    #section dynsql
     with open(ddsql,'r') as ddf:
 	ddcreate = ddf.read()
     logged_execute(cnx, ddcreate)
@@ -250,14 +274,18 @@ def main(cnx,fname,style,dtcp,mincnt):
     cnx.commit()
     tprint("added rules to df_dtdict",tt);tt = time.time()
     
-    # create the create_dynsql table, which may make most of these individually defined tables unnecessary
-    # see if the ugly code hiding behind par['create_dynsql'] can be replaced by 
-    # more concise dsSel Or maybe even if df_dynsql table itself can be replaced 
-    # and we could do it all in one step
-    # DONE: use df_rules
+    """ create the create_dynsql table, which may make most of these 
+    individually defined tables unnecessary. 
+    See if the ugly code hiding behind par['create_dynsql'] can be replaced by 
+    more concise dsSel Or maybe even if df_dynsql table itself can be replaced
+    and we could do it all in one step
+    
+    DONE: use df_rules"""
     logged_execute(cnx, par['create_dynsql'])
     tprint("created df_dynsql table",tt);tt = time.time()
+    #end_section dynsql
     
+    #section dynsql_experimental
     # not sure it's an improvement, but here is using the sqgr function nested in itself 
     # to create the equivalent of the df_dynsql table 
     #(note the kludgy replace and || stuff, needs to be done better)
@@ -275,8 +303,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     bar1=cnx.execute("select group_concat(val) from (select distinct tc(colcd,presuffix,suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()[0][0]
     # putting them together...
     "select patient_num,start_date, "+bar[0][0]+" from df_joinme "+foo[0][0]
+    #end_section dynsql_experimental
 
-    
+    #section chunks_n_fulloutput2
     # each row in create_dynsql will correspond to one column in the output
     # here we break create_dynsql into more manageable chunks
     # again, if generated using dsSel, we might be able to manage those chunks script-side
@@ -293,7 +322,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     # code for creating what will eventually replace the fulloutput table
     logged_execute(cnx, logged_execute(cnx, par['fulloutput2']).fetchone()[0])
     tprint("created fulloutput2 table",tt);tt = time.time()
+    #end_section chunks_n_fulloutput2
     
+    #section final_query
     # TODO: lots of variables being created here, therefore candidates for renaming
     # or refactoring to make simpler
     allsel = rdt('birth_date',dtcp) + """ birth_date, sex_cd 
@@ -310,6 +341,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     allqry += " order by patient_num, start_date"
     logged_execute(cnx, allqry)
     tprint("created fulloutput table",tt);tt = time.time()
+    #end_section final_query
+    
+    #section colnames (dynames,stnames)
     # now we get the names for the universal (i.e. for every result) and
     # the number of query-specific columns
     ndycols = logged_execute(cnx, "select count(*) from df_dynsql").fetchone()[0]
@@ -320,7 +354,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     # this means the rest are universal or have static names
     stnames = [ii for ii in fonames if ii not in dynames]
     # joining them into a single string to keep things simpler later
+    #end_section colnames
     
+    #section binoutput_optional
     # We create a view of the above that collapses the aggregated code columns to 
     # binary T/F values
     selbin_dynsql = logged_execute(cnx, par['selbin_dynsql']).fetchone()[0]
@@ -336,7 +372,9 @@ def main(cnx,fname,style,dtcp,mincnt):
       finalview = 'df_binoutput'
     else:
       finalview = 'fulloutput'
+    #end_section binoutput_optional
     
+    #section remove_empty_cols (dycnts)
     # Okay, so this is the reason we don't have a .csv output bloated with empty columns
     # even before we started filtering the df_codeid table in this patch. However, this patch
     # should make the code run faster and the output .db smaller
@@ -350,16 +388,21 @@ def main(cnx,fname,style,dtcp,mincnt):
       ).fetchone()
     # here are the columns we keep
     # TODO: write dyncnts to df_dynsql table
+    #end_section remove_empty_cols
+
+    # COLUMN NAMES
     keepdynames = [ii[0] for ii in zip(dynames,dycnts) if ii[1] > mincnt]
-    # values for the first row of output, first the static columns without JSON
-    # use '---' if neither of the below apply
+    
+    # values for the first row of output
+    #section outputmeta
+    # Static columns without JSON use '---' if neither numeric nor date
     outputmeta = ['---' if kk in stnames else kk 
 		  # use 0 for numeric columns
 		  for kk in [0 if '_days' in jj else jj 
 	       # use current date for date columns
 	       for jj in [time.strftime('%Y-%m-%d',time.gmtime()) if '_date' in ii else ii 
 		   for ii in stnames]]]
-    # field names for the JSON values
+    # Field names for the JSON (non-static) columns
     jfields = [ii[1] for ii in logged_execute(cnx,"pragma table_info(df_dtdict)").fetchall()]
     # use jfields to generate dicts, convert them to JSON strings, and extend this list onto
     # outputmeta
@@ -374,15 +417,20 @@ def main(cnx,fname,style,dtcp,mincnt):
 	 #).fetchall()])+" from fulloutput")
     # get column names
     # vnms = [ii[0] for ii in vcrs.description]
+    #end_section outputmeta
     pdb.set_trace()
     
     # i.e. to not create a .csv file, pass 'none' in the -v argument
     if fname.lower() != 'none':
+      #section first2lines
       ff = open(fname,'wb')
       finalnames = stnames + keepdynames
       # below line generates the CSV header row
       csv.writer(ff).writerow(finalnames)
       csv.writer(ff).writerow(outputmeta)
+      #end_section first2lines
+      
+      #section rest_of_output
       # fetch the final data 
       result = logged_execute(
 	cnx, "select {0} from {1}".format(
@@ -393,7 +441,10 @@ def main(cnx,fname,style,dtcp,mincnt):
       with ff:
 	  csv.writer(ff).writerows(result)
       tprint("wrote output table to file",tt);tt = time.time()
+      #end_section rest_of_output
+
       # now the metadata
+      #section write_metadata
       path = dirname(fname)
       if path == '': path = '.'
       f0 = open(path + '/meta_'+basename(fname),'wb')
@@ -402,9 +453,11 @@ def main(cnx,fname,style,dtcp,mincnt):
       result = logged_execute(cnx,'select '+','.join(cols_meta)+' from df_dynsql').fetchall()
       with f0: csv.writer(f0).writerows(result)
       tprint("wrote metadata to file",tt);tt = time.time()
+      #end_section write_metadata
+      
     tprint("TOTAL RUNTIME",startt)
     
-    """
+    """ notes
     DONE: implement a user-configurable 'rulebook' containing patterns for catching data that would otherwise fall 
     into UNKNOWN FALLBACK, and expressing in a parseable form what to do when each rule is triggered.
     DONE: The data dictionary will contain information about which built-in or user-configured rule applies for each cid
@@ -429,7 +482,6 @@ if __name__ == '__main__':
     else:
       dtcp = args.datecompress
     #xfieldj(testjson,'cc')
-    #import pdb; pdb.set_trace()
     if args.cleanup:
       cleanup(con)
     else:
