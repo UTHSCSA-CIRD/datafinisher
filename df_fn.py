@@ -243,13 +243,22 @@ def dropletters(intext):
 ### for json parsing 
 #section json
 
+# Question: how to make this specify multiple output columns?
 def xmetaj(data,header,rules=rules,chosen=0):
-  # note: data and header are both character values (not lists)
-  # returns a list containing at least one list. This inner list
-  # has 3 values in the following order: extractor name, header, and metadata
-  # a missing value in the meta row is interpreted as being dynamically generated
-  # and so is marked for skipping (because presumably it will be re-generated)
-  # to override this behavior, just make the value not null in the input file
+  """
+  data and header are both character values (not lists)
+  rules is a list of dicts (see rules.py)
+  chosen is ???
+
+  returns a list containing at least one list. This inner list has 3 values in 
+  the following order: extractor name, header, and metadata
+  
+  a missing value in the meta row is interpreted as being dynamically 
+  generatedand so is marked for skipping (because presumably it will be 
+  re-generated) 
+  
+  to override this behavior, just make the value not null in the input file
+  """
   if data in ('',None): return([['skip','','']])
   # Now we try to crudely pre-filter stuff that isn't properly formatted JSON
   # data wrapped in str() to avoid errors from numeric values 
@@ -259,6 +268,7 @@ def xmetaj(data,header,rules=rules,chosen=0):
   try: jdata = json.loads(data)
   # if parsing fails we fall back on treating it as a static column
   except: return([['as_is',header,data]])
+  # does this go any further than the first successfully matching rule?
   for xx in rules:
     if eval(xx['criteria'],jdata):
       outextr = [yy[0] for yy in xx['extractors']]

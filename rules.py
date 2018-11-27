@@ -2,15 +2,16 @@
 This is a collection of python dict objects telling the xmetaj() function what 
 rules and titles to suggest under what circumstances
 
-The criteria will be executed by eval() and for each of the 2-items lists inside 
-the extractor list the first value will the extractor name and the second will be
-formatted to be the column name
 '''
 rules = [
    { # if this column has any numeric values return the last for each visit
      "name": "last_numeric"
-    ,"criteria":"nval_num > 0"
-    ,"extractors":[["last_numeric","{0}.num"]]
+     # The criteria will be executed by eval() in the context of the JSON 
+     # metadata that ultimately originates from the df_dtdict
+     ,"criteria":"nval_num > 0"
+     # first value: name of extractor function, 
+     # second value: template for naming column
+    ,"extractors":[["last_numeric","{0}.last.num"]]
    }
 
   ,{ # if this column consists of only NULL and one other value

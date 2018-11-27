@@ -85,23 +85,30 @@ def update_df(csvin):
   outsuffix = '.out'
   filebase,filext = path.splitext(path.basename(csvin))
   fileout = path.join(mydir,(filebase+outsuffix+filext))
+
   # read the csvin file
   inhandle = open(csvin,'r'); outhandle = open(fileout,'w')
   fr = csv.reader(inhandle); fw = csv.writer(outhandle)
+
   # first row: header
   myheader = fr.next()
+
   # second row: metadata (in string form)
   rawmeta = fr.next()
+
   # number of columns in the input data
   rawncols = len(rawmeta)
+
   # unpack the metadata 
+  # 
   template = [xmetaj(xx[0],xx[1]) for xx in zip(rawmeta,myheader)]
   ncols = len(template)
+
   newhead = [] # the actual header to write to the output file
   [[newhead.append(jj[1]) for jj in ii] for ii in template]
+
   newmeta = [] # the actual first row to write to the output file
   [[newmeta.append(jj[2]) for jj in ii] for ii in template]
-  import pdb; pdb.set_trace()
   # Now we have newheader and newmeta along with mytemplate which will direct 
   # the extraction of each subsequent line of data.
   # Write them out to the output file
@@ -109,10 +116,19 @@ def update_df(csvin):
   fw.writerow(newmeta)
   # Process each line of input and write it to the output following the 
   # guidance of the template
+  import pdb; pdb.set_trace()
   for linein in fr:
     lineout = []
+    # there are as many items (ii) in template as there are input columns
     for ii in range(0,ncols):
+      # each item (ii) in template contains one or more specifications (jj)
+      # for output columns, with each jj specifying a different output
+      # column derived from the current ii
       for jj in template[ii]:
+	# and in each jj first element is the name of the set of arguments that
+	# will be passed to xfieldj() for it to produce the appropriate format
+	# of output. THIS IS WHERE THERE NEED TO BE ADDITIONAL ENTRIES IN ORDER
+	# TO HAVE MULTIPLE DERIVED COLUMNS FOR THE SAME VARIABLE
 	if(jj[0] != 'skip'):
 	  lineout.append(xfieldj(linein[ii],**testargs[jj[0]]))
     fw.writerow(lineout)

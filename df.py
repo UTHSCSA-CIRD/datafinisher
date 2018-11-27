@@ -322,7 +322,7 @@ def main(cnx,fname,style,dtcp,mincnt):
     # code for creating what will eventually replace the fulloutput table
     logged_execute(cnx, logged_execute(cnx, par['fulloutput2']).fetchone()[0])
     tprint("created fulloutput2 table",tt);tt = time.time()
-    #end_section chunks_n_fulloutput2
+    #end_section chunks_n_fulloutput2 
     
     #section final_query
     # TODO: lots of variables being created here, therefore candidates for renaming
@@ -390,22 +390,26 @@ def main(cnx,fname,style,dtcp,mincnt):
     # TODO: write dyncnts to df_dynsql table
     #end_section remove_empty_cols
 
-    # COLUMN NAMES
+    # COLUMN NAMES to keep
     keepdynames = [ii[0] for ii in zip(dynames,dycnts) if ii[1] > mincnt]
     
     # values for the first row of output
     #section outputmeta
-    # Static columns without JSON use '---' if neither numeric nor date
+    # Static columns without JSON 
+    
+    # use '---' if not matched by either of the below two
     outputmeta = ['---' if kk in stnames else kk 
-		  # use 0 for numeric columns
+		  # if not date, THEN use 0 for numeric columns
 		  for kk in [0 if '_days' in jj else jj 
-	       # use current date for date columns
+	       # FIRST use current date for date columns
 	       for jj in [time.strftime('%Y-%m-%d',time.gmtime()) if '_date' in ii else ii 
 		   for ii in stnames]]]
+    
     # Field names for the JSON (non-static) columns
     jfields = [ii[1] for ii in logged_execute(cnx,"pragma table_info(df_dtdict)").fetchall()]
-    # use jfields to generate dicts, convert them to JSON strings, and extend this list onto
-    # outputmeta
+    # generate a dict for each (dynamic) variable using jfields as the keys 
+    # and the rows of df_dtdict as values them to JSON strings, and extend()
+    # this list onto outputmeta
     outputmeta.extend([json.dumps(yy)
 	     for yy in [dict(zip(jfields,xx)) 
 		 for xx in logged_execute(cnx,'select * from df_dtdict').fetchall()] 
