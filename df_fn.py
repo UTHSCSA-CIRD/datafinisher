@@ -243,33 +243,110 @@ def dropletters(intext):
 ### for json parsing 
 #section json
 
-# Question: how to make this specify multiple output columns?
+# Q: how to make this specify multiple output columns?
+# A?: have a rule with multiple items for an extractor?
+
+def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
+  """
+  * datadict: ONE valid dict object (no JSON, no nulls)
+  * rules: a rules object, imported from rules.py by default
+  * recommendfield: either empty string or the name of a field to look for in rules
+  
+  returns a boolean list same length as rules
+  """
+  # eval the criterion field of each rule for datadict
+  out = [eval(xx.get('criteria','False'),datadict) for xx in rules];
+  # if recommendfield is not empty then also evaluate the that field and AND it with previous result
+  if(recommendfield != None and len(recommendfield)>0):
+    out = [all(yy) for yy in zip([
+      eval(xx.get(recommendfield,'False'),datadict) for xx in rules
+      ],out)];
+  return(out);
+  # return list
+
+def rulesselected(datadict,rules=rules,selected=[],*args, **kwargs):
+  """
+  * datadict: ONE valid dict object (no JSON, no nulls)
+  * rules: a rules object, imported from rules.py by default
+  * selected: a list of names or booleans (all the same type)
+  
+  returns a list containing at least one list (one for each output column). 
+  These inner lists each have 3 values in the following order: 
+  
+    1. extractor name (what extractor function xfieldj() should call)
+       Special values: 'as_is', 'skip'
+    2. header (what the output column should be named, or empty string)
+    3. value to place in the second row (metadata) 
+  """
+  # is selected empty? if so, run rulesvalidate and use that
+  if(selected == None or length(selected)==0): 
+    selected = rulesvalidate(datadict,rules,**kwargs);
+  # get types of selected argument
+  seltypes = [type(ii) for ii in selected];
+  # is selected all boolean? if so, check that it has same length as rules
+  if (all([ii == type(True) for ii in seltypes])):
+    if (len(selected)==len(rules)):
+      # if so, subset the rules accordingly
+      selrules = [jj for ii,jj in zip(selected,rules) if ii];
+    # but if length mismatch raise an error
+    else: raise ValueError("""
+      If 'selected' argument is boolean it must be the same length as the 'rules' argument
+      """);
+  # or is selected a list of all strings?
+  elif (all([ii == type(True) for ii in seltypes])):
+      # if so, select rules whose 'name' attributes match an item on the list
+      selrules = [ii for ii in rules if ii.get('name') in selected];
+  # if neither all-boolean nor all-string, error
+  else: raise ValueError("""
+    The 'selected' argument must be a list of all boolean or all string values.
+    If all boolean, it must be the same length as the 'rules' argument.
+    """);
+  # iterate over selrules and get the rulename and column name for each
+  outextr = []; outhead = [];
+  for xx in selrules:
+    outextr += [yy[0] for yy in xx['extractors']];
+    outhead += [yy[1].format(datadict['colid'],datadict['colcd']) for yy in xx['extractors']];
+  # return a tuple with outextr (extractor name) and outhead (column name)
+  # TODO: test and error if outhead is not unique
+  return outextr,outhead;
+
 def xmetaj(data,header,rules=rules,chosen=0):
   """
-  data and header are both character values (not lists)
-  rules is a list of dicts (see rules.py)
-  chosen is ???
+  * data and header are both character values (not lists)
+      * data is a JSON string
+      * header is the literal column header
+  * rules is a list of dicts (see rules.py)
+  * chosen is... not implemented?
 
-  returns a list containing at least one list. This inner list has 3 values in 
-  the following order: extractor name, header, and metadata
+  returns a list containing at least one list (one for each output column). 
+  These inner lists each have 3 values in the following order: 
   
-  a missing value in the meta row is interpreted as being dynamically 
+    1. extractor name (what extractor function xfieldj() should call)
+       Special values: 'as_is', 'skip'
+    2. header (what the output column should be named, or empty string)
+    3. value to place in the second row (metadata) 
+  """
+  """A missing value in the meta row is interpreted as being dynamically 
   generatedand so is marked for skipping (because presumably it will be 
-  re-generated) 
-  
-  to override this behavior, just make the value not null in the input file
+  re-generated). To override this behavior, just make the value in the second
+  of the input file neither null nor JSON
   """
   if data in ('',None): return([['skip','','']])
-  # Now we try to crudely pre-filter stuff that isn't properly formatted JSON
-  # data wrapped in str() to avoid errors from numeric values 
-  #if data in (0,'---'): return([['as_is',header,data]])
+
+  """Now we try to crudely pre-filter stuff that isn't properly formatted JSON
+  data wrapped in str() to avoid errors from numeric values. Failure to match
+  is interpreted as a static column not controlled by the metadata row at all.
+  """
+  #if data in (0,'---'): return([['as_is',header,data]]) # old version
+  # TODO: insure that the static columns never collide with dynamically generated ones
   if not re.match('^\{.*\}$',str(data)): return([['as_is',header,data]])
-  # now we try to parse it
+  # now we try to parse the metadata json (the stuff that's in the second row)
   try: jdata = json.loads(data)
   # if parsing fails we fall back on treating it as a static column
   except: return([['as_is',header,data]])
   # does this go any further than the first successfully matching rule?
   for xx in rules:
+    # if a selected str
     if eval(xx['criteria'],jdata):
       outextr = [yy[0] for yy in xx['extractors']]
       outhead = [yy[1].format(jdata['colid'],jdata['colcd']) for yy in xx['extractors']]
