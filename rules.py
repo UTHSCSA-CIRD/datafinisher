@@ -2,6 +2,10 @@
 This is a collection of python dict objects telling the xmetaj() function what 
 rules and titles to suggest under what circumstances
 
+TODO: Enforce the following validation rule: extractors[1] should be unique
+
+Q: Is the reason this is a list rather than a named dict is because order 
+   matters?
 '''
 rules = [
    { # if this column has any numeric values return the last for each visit
@@ -21,9 +25,37 @@ rules = [
    }
 
   ,{ # if this column has codes (and really anything else)
-     "name": "code_concat"
+     "name": "concat_unique"
     ,"criteria":"True"
     ,"extractors":[["concat_unique","{0}.values"]]
    }
 
 ]
+
+''' The `extractors` dict is not currently supposed to be imported by anything, 
+the active one is `testargs` in `dfx.py`. At this time, the below copy is just
+here for reference
+'''
+
+extractors = {
+  'as_is' : {'field':'','as_is' : True}
+  ,'concat_unique' : {'field':'cc'}
+  ,'last_numeric':{'field':'nv','transform':lambda xx: '' if len(xx) == 0 else xx.pop()}
+  ,'last_unique':{'field':'cc','transform':lambda xx: '' if len(xx) == 0 else xx.pop()}
+  ,'true_false':{'field':'cc','transform':any}
+  ,'tf_activediag':{'field':'cc','transform':any
+		    ,'select':lambda xx: [kk not in ('DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2') for kk in xx]
+		    ,'nulls_r_false': True}
+  ,'tf_inactivediag':{'field':'cc','transform':any
+		      ,'select':lambda xx: [kk in ('DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2') for kk in xx]
+		      ,'nulls_r_false': True}
+  #,'':{'field':'','transform':None}
+  #,'num_ix': {'field':'ix','transform':len}
+  #,'any_vf': {'field':'vf','transform':any}
+  #,'encdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DiagObs:PAT_ENC_DX'}
+  #,'npdx_mc': {'field':'mc','transform':lambda xx,refval: any([kk == refval for kk in xx]),'refval':'DX|PROF:NONPRIMARY'}
+  #,'max_st':{'field':'st','transform':max}
+  #,'min_st':{'field':'st','transform':min}
+  #,'first_un':{'field':'un','transform':lambda xx: [kk for kk in xx if kk is not None][0] if any(xx) else None}
+  #,'':{'field':'','transform':None}
+  ,}
