@@ -5,7 +5,7 @@ usage: dfx.py [-l] [-h] [-o OUTFILE] [csvin]
 """
 
 
-import argparse,csv,json #,ast (for literal_eval, not yet used)
+import argparse,csv,json,re #,ast (for literal_eval, not yet used)
 from os import path
 from df_fn import xmetaj,xfieldj,rulesvalidate
 # import pandas as pd (for DataFrame, not yet used)
@@ -98,7 +98,28 @@ def update_df(csvin):
 
   # number of columns in the input data
   rawncols = len(rawmeta)
-
+  
+  # experimental tree-like template and iterating over it
+  template2 = {kk: {
+    'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
+			  ,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
+			  ,'args':[]}]
+    } for kk,vv in zip(myheader,[json.loads(jj) 
+				 if re.match('\{.*\}$',str(jj)) 
+				 else jj for jj in rawmeta])};
+  newhead2 = []; newmeta2 = [];
+  [[newhead2.append(yy) for yy in 
+    [xx.get('cname') for xx in 
+     template2.get(ii).get('outcols')]] for ii in myheader];
+    
+  [[newmeta2.append(yy) for yy in 
+    [xx.get('dat') for xx in 
+     template2.get(ii).get('outcols')]] for ii in myheader];
+  '''
+  #order gets preserved:
+  all([json.loads(aa)==json.loads(bb) if re.match('\{.*\}$',aa) else aa==bb for aa,bb in zip(rawmeta,newmeta2)]);
+  all([aa==bb for aa,bb in zip(myheader,newhead2)]);
+  '''
   # unpack the column metadata in from the second row
   """ `template` is a list of lists (equal in length to number of input columns?)
   With each list consisting of the extractor(s?) to use, the literal header(s?)
