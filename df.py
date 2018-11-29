@@ -234,8 +234,16 @@ def main(cnx,fname,style,dtcp,mincnt):
     # Read in and run the sql/dd.sql file
     #section dynsql
     with open(ddsql,'r') as ddf:
-	ddcreate = ddf.read()
-    logged_execute(cnx, ddcreate)
+	ddcreate = ddf.read();
+    # cannot execute multiple statements, so we split the statements 
+    ddcreate = ddcreate.split(';');
+    # the production version shall always be the first statement
+    logged_execute(cnx, ddcreate[0]);
+    if par['debuglevel'] > 0:
+      logged_execute(cnx,ddcreate[1]);
+      assert (logged_execute(cnx,ddcreate[2]).fetchone() == 
+	      logged_execute(cnx,'select count(*) from df_dtdict').fetchone()), '''
+      Old and new df_dtdict creation methods disagree''';
     tprint("created df_dtdict",tt);tt = time.time()
 
     # rather than running the same complicated select statement multiple times 
@@ -410,10 +418,16 @@ def main(cnx,fname,style,dtcp,mincnt):
     # generate a dict for each (dynamic) variable using jfields as the keys 
     # and the rows of df_dtdict as values them to JSON strings, and extend()
     # this list onto outputmeta
+    outpumetaqry='''
+    select * from df_dtdict left join
+    (select id,group_concat(distinct ccd) ccd_list
+    from df_codeid where id in 
+    (select cid from df_dtdict where ccd <= {0})
+    group by id) ccdlist on cid = id'''.format(par['dtdict_ccd_cutoff']);
     outputmeta.extend([json.dumps(yy)
 	     for yy in [dict(zip(jfields,xx)) 
-		 for xx in logged_execute(cnx,'select * from df_dtdict').fetchall()] 
-	     if yy['colid'] in keepdynames])
+		 for xx in logged_execute(cnx,outputmetaqry).fetchall()] 
+	     if yy['colid'] in keepdynames]);
     #vcrs = cnx.execute(
     #  "select "+",".join(
 	 #[ii[0] for ii in cnx.execute(
@@ -422,7 +436,7 @@ def main(cnx,fname,style,dtcp,mincnt):
     # get column names
     # vnms = [ii[0] for ii in vcrs.description]
     #end_section outputmeta
-    pdb.set_trace()
+    #pdb.set_trace()
     
     # i.e. to not create a .csv file, pass 'none' in the -v argument
     if fname.lower() != 'none':
