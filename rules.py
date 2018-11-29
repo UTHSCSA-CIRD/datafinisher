@@ -7,6 +7,38 @@ TODO: Enforce the following validation rule: extractors[1] should be unique
 Q: Is the reason this is a list rather than a named dict is because order 
    matters?
 '''
+
+'''
+For 'criteria' in 'values' in 'autosuggestor', the following variables are 
+currently available in the data object (the JSON from the second row of the
+CSV  input file):
+ 'patvis': number of patient-visits having a non-null value for this column
+ 'patvis_null': number of patient-visits loacking any values for this column
+ 'pats': number of patients who have at least one non-null value for this column
+ 'pats_null': number of patients lacking any values for this column
+ 'mxconmod': maximum number of concept-mod combinations for any visit
+ 'quantity_num'
+ 'mxinsts'
+ 'nval_num'
+ 'cid'
+ 'name'
+ 'colcd'
+ 'rule'
+ 'ddomain'
+ 'concept_path'
+ 'mxfacts'
+ 'done'
+ 'valueflag_cd'
+ 'ccd'
+ 'colid'
+ 'tval_char'
+ 'mod'
+ 'confidence_num'
+ 'units_cd'
+ 'location_cd'
+ 'valtype_cd']
+'''
+
 rules = [
    { # if this column has any numeric values return the last for each visit
      "name": "last_numeric"
@@ -20,7 +52,7 @@ rules = [
 
   ,{ # if this column consists of only NULL and one other value
      "name": "true_false"
-    ,"criteria":"ccd <= 1" # later, check for > 1 unique concept|mod per visit
+    ,"criteria": 'True' #"ccd <= 1" # later, check for > 1 unique concept|mod per visit
     ,"extractors":[["true_false","{0}.tf"]]
    }
 
@@ -30,6 +62,42 @@ rules = [
     ,"extractors":[["concat_unique","{0}.values"]]
    }
 
+]
+  
+rules2 = {
+    'last_numeric': { 
+     # if this column has any numeric values return the last for each visit
+     # The criteria will be executed by eval() in the context of the JSON 
+     # metadata that ultimately originates from the df_dtdict
+      "criteria":"nval_num > 0"
+     # first value: name of extractor function, 
+     # second value: template for naming column
+    ,"extractors":[["last_numeric","{0}.last.num"]]}
+  ,'true_false': { 
+    # if this column consists of only NULL and one other value
+     "criteria": 'True'
+    ,"extractors":[["true_false","{0}.tf"]]}
+  ,"concat_unique": { 
+    # if this column has codes (and really anything else)
+     "criteria":"True"
+    ,"extractors":[["concat_unique","{0}.values"]]}
+}
+
+''' These are criteria applied in addition to the rules ones to meet the higher
+threshold for actually suggesting the use of these rules
+
+These are a list rather than a dict because order matters (it represents 
+precedence, facilitated by the planned noutputs variable)
+
+noutputs is going to be a variable that tracks how many previous 
+rules have already been suggested for this column
+'''
+autosuggestor = [
+   {'last_numeric': 'ccd==1 & noutputs==0'}
+  ,{'median_multicol': 'ccd>1 & noutputs==0'}
+  ,{'true_false': 'ccd==1 & noutputs==0'}
+  ,{'concat_unique': 'noutputs==0'}
+    # TODO: multi-numeric for when ccd>1
 ]
 
 ''' The `extractors` dict is not currently supposed to be imported by anything, 
