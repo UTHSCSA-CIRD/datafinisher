@@ -47,7 +47,7 @@ rules = [
      ,"criteria":"nval_num > 0"
      # first value: name of extractor function, 
      # second value: template for naming column
-    ,"extractors":[["last_numeric","{0}.last.num"]]
+     ,"extractors":[["last_numeric","{0}.last.num"]]
    }
 
   ,{ # if this column consists of only NULL and one other value
@@ -65,21 +65,24 @@ rules = [
 ]
   
 rules2 = {
-    'last_numeric': { 
+   'last_numeric': { 
      # if this column has any numeric values return the last for each visit
      # The criteria will be executed by eval() in the context of the JSON 
      # metadata that ultimately originates from the df_dtdict
-      "criteria":"nval_num > 0"
+     "criteria":"nval_num > 0"
+    ,"split_by_code": False
      # first value: name of extractor function, 
      # second value: template for naming column
     ,"extractors":[["last_numeric","{0}.last.num"]]}
   ,'true_false': { 
     # if this column consists of only NULL and one other value
      "criteria": 'True'
+    ,"split_by_code": False
     ,"extractors":[["true_false","{0}.tf"]]}
   ,"concat_unique": { 
     # if this column has codes (and really anything else)
      "criteria":"True"
+    ,"split_by_code": False
     ,"extractors":[["concat_unique","{0}.values"]]}
 }
 
@@ -94,11 +97,23 @@ rules have already been suggested for this column
 '''
 autosuggestor = [
    {'last_numeric': 'ccd==1 & noutputs==0'}
-  ,{'median_multicol': 'ccd>1 & noutputs==0'}
+  #,{'median_multicol': 'ccd>1 & noutputs==0'}
   ,{'true_false': 'ccd==1 & noutputs==0'}
   ,{'concat_unique': 'noutputs==0'}
     # TODO: multi-numeric for when ccd>1
 ]
+
+simulated_choices = [
+ {
+  "colmeta": "", 
+  "cname": "v025_Drvd_Dscrpt.values", 
+  "extr": "concat_unique", 
+  "args": {
+   "whatcode": ""
+  }
+ }
+]
+
 
 ''' The `extractors` dict is not currently supposed to be imported by anything, 
 the active one is `testargs` in `dfx.py`. At this time, the below copy is just
