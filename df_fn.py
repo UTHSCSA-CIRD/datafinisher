@@ -11,7 +11,7 @@ from df import dolog
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
 # each pattern
-from rules import rules
+from rules import rules,rules2,autosuggestor
 
 # useful lists
 # columns that may affect the interpretation of the data
@@ -243,6 +243,194 @@ def dropletters(intext):
 ### for json parsing 
 #section json
 
+class DFMeta: 
+  '''Initialize with a list of column names and metadata 
+  some of which is assumed to be strings convertible to dicts by wy of JSON
+  
+  suggestPolicy: if 'no' then ignore suggestions completely
+		 if 'yes' then always create suggested columns unless 
+		 conflicting with user choices
+		 if 'auto' only create suggested columns if the user made no 
+		 choices at all (default)
+  
+  Future plans: allow the first argument to be a file-handle
+  '''
+  def __init__(self,inhead,inmeta=None,suggestPolicy='auto'
+	       ,rules=rules2,suggestions=None):
+    if inmeta == None:
+      inmeta = ['---']*len(inhead)
+    assert len(inhead) == len(inmeta), '''
+    'inhead' and 'inmeta' args to DFMeta() must be same length'''
+    self.inhead = inhead
+    self.inmeta = inmeta
+    self.suggestPolicy = suggestPolicy
+    self.incols = {kk: {
+      'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
+			      ,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
+			      ,'args':[]}]
+      } for kk,vv in zip(self.inhead,[json.loads(jj) 
+				      if re.match('\{.*\}$',str(jj)) 
+				      else jj for jj in self.inmeta])}
+    
+  #def setSuggestPolicy(self,suggestPolicy='auto'):
+  #  self.suggestPolicy = suggestPolicy
+    
+  def updRules(self,rules=rules2):
+    '''For each of the incols do foo.updRules(rules)'''
+    pass
+  
+  def updSuggestions(self,suggestions):
+    '''For each of the incols do foo.updSuggestions(suggestions)'''
+    pass
+  
+  def updChoices(self,choices):
+    '''For each of the incols do foo.updChoices(choices)'''
+    pass
+    
+  def getHeaders(self,fields=['cname','extr','colmeta','args'],form='lists'):
+    '''For each of the incols, do foo.getHeader() with the above arguments
+    and in addition whatever the current value of suggestPolicy is'''
+    pass
+  
+  def processRow(self,cells,pidname='PATIENT_NUM'):
+    '''For each of the incols, do foo.processCell() passing each one its cell
+    and the pid, obtained by extracting the value specified by 'pidname'
+    '''
+    pass
+    
+''' Note: colmeta is a dict with the following fields:
+ (see sql/dd.sql)
+ "nval_num": 
+ "patvis": 
+ "patvis_null": 
+ "pats": 
+ "pats_null", 
+ "confidence_num": 
+ "mxconmod": 
+ "done": 
+ "colid":		the name assigned to this base column
+ "concept_path": 
+ "ddomain": 
+ "valueflag_cd": 
+ "tval_char": 
+ "valtype_cd": 
+ "mxinsts": 
+ "ccd_list": 
+ "mod": 
+ "name": 
+ "cid": 
+ "colcd": 
+ "rule": 
+ "mxfacts": 
+ "quantity_num": 
+ "ccd": 
+ "units_cd": 
+ "location_cd":
+'''
+
+
+class DFCol:
+  ''' Everything this column needs to know should be contained in the colmeta
+  '''
+  def __init__(self,colmeta,colname,rules=rules2,suggestions=None):
+    self.colmeta = colmeta; self.name = colname
+    # all distinct concept codes in this column, if there are not too many
+    self.unique_codes = self.colmeta['ccd_list'].split(',')
+    '''This is for later, to enable last-observation carry-forward extractors
+    It compares current pid to previous so the carry-forward can be 
+    restarted when the records for a new patient begin.
+    '''
+    self.last_pid = None
+    """This is the info column, which should be a replica of the column in the 
+    input CSV file that produced this column"""
+    self.dfcol = {'cname': colname,'extr': 'as_is'
+		    ,'colmeta':json.dumps(colmeta) if isinstance(colmeta,dict) else colmeta
+		    ,'args':[]}
+    # The set of derived columns chosen by the user and by suggestions
+    self.chosen = []; self.suggested = []
+    # Of the rules available, the ones that are valid for this column
+    self.updRules(rules,suggestions)
+    #suggrules = [self.runRule(self.rules[ii]) for ii in self.rules if self.rules[ii]['suggested']]
+    import pdb; pdb.set_trace()
+    #foo = self.runRule(self.rules['true_false'])
+  
+  def updRules(self,rules=rules2,suggestions=None):
+    '''Replace the current rules with subset of new ones that are valid 
+    for this columnn based on their built-in validity checks and colmeta
+    
+    If 'suggestions' argument provided, also updates suggestions
+    '''
+    rules0 = {kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)}
+    for ii in rules0: rules0[ii]['suggested'] = False
+    self.rules = rules0
+    if suggestions != None: self.updSuggestions(suggestions)
+    return self
+    # initialize the 'suggested' attribute to 'False'
+    
+  def updSuggestions(self,suggestions):
+    '''Update the 'suggested' attribute for each rule based on suggestions
+    and replace self.suggested accordingly
+    
+    suggestions is a list of dicts
+    '''
+    # TODO: validate suggestions before proceeding
+    # empty out the current auto-generated output columns
+    self.suggested = []
+    noutputs = 0
+    for ii in suggestions:
+      if ii.keys()[0] in self.rules:
+	check = eval(ii.values()[0],locals(),self.colmeta)
+	self.rules[ii.keys()[0]]['suggested'] = check
+	if check:
+	  self.suggested+=self.runRule(ii.keys()[0])
+	noutputs += check
+    return self
+  
+  def runRule(self,rule):
+    ''' 
+    rule: the NAME of a rule in self.rules
+    
+    return 'cname','extr','colmeta' (None),'args' {}
+    if split_by_code, repeat this for every code in self.colmeta.ccd_list
+    '''
+    assert rule in self.rules, "Not the name of a valid rule"
+    out = []
+    if self.rules[rule]['split_by_code']:
+      whatcode = self.unique_codes.split(',')
+    else: whatcode = ['']
+    for ii in whatcode:
+      for jj in self.rules[rule]['extractors']:
+	if ii != '': 
+	  jj[1]=ii+'_'+jj[1]
+	out.append({'cname':jj[1].format(self.name)
+	     ,'extr':jj[0]
+	     ,'colmeta':''
+	     ,'args':{'whatcode':ii}})
+    return out
+	  
+  def updChoices(self,choices):
+    '''Get the user choices (extractors, names (?), and args) 
+    and replace self.chosen accordingly.'''
+    return self
+  
+  def getHeader(self,fields=['cname','extr','colmeta','args'],form='lists'
+		,suggestPolicy='auto'):
+    '''Return the fields specified by the 'fields' argument
+    
+    form:      if 'lists' returns each requested field as a list
+               if 'zip' returns tuples of fields, one for each column
+               
+    Note: NEED TO MAKE SURE getHeader and processCell return in the same order!
+    '''
+    pass
+
+  def processCell(self,celldata,pid=None,suggestPolicy='auto'):
+    '''Iterates over each of {self.dfcol,self.chosen} (and, depending on
+    suggestPolicy, self.suggested) and uses the 'extr' and 'args' values
+    they contain to create and return a list of output of the same length
+    '''
+    pass
+    
 # Q: how to make this specify multiple output columns?
 # A?: have a rule with multiple items for an extractor?
 
