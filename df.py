@@ -414,12 +414,13 @@ def main(cnx,fname,style,dtcp,mincnt):
 		   for ii in stnames]]]
     
     # Field names for the JSON (non-static) columns
-    jfields = [ii[1] for ii in logged_execute(cnx,"pragma table_info(df_dtdict)").fetchall()]
+    # adding ccd_list to hold the distinct values of concept_cds for each column
+    jfields = [ii[1] for ii in logged_execute(cnx,"pragma table_info(df_dtdict)").fetchall()]+['ccd_list']
     # generate a dict for each (dynamic) variable using jfields as the keys 
     # and the rows of df_dtdict as values them to JSON strings, and extend()
     # this list onto outputmeta
-    outpumetaqry='''
-    select * from df_dtdict left join
+    outputmetaqry='''
+    select df_dtdict.*,ccd_list from df_dtdict left join
     (select id,group_concat(distinct ccd) ccd_list
     from df_codeid where id in 
     (select cid from df_dtdict where ccd <= {0})
