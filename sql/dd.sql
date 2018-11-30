@@ -3,7 +3,7 @@ create table if not exists df_dtdict as
 
 select distinct df_codeid.*,patvis_null,patvis,pats_null,pats
 ,mxinsts,mxfacts,mxconmod
-,'' ccd_list
+--,'' ccd_list
 ,'v'||substr('000'||cid,-3) colcd
 -- the below are semi-human-readable, unique, and relatively short column names
 ,'v'||substr('000'||cid,-3)||'_'||replace(trim(drl(shw(name,15))),' ','_') colid
@@ -101,7 +101,8 @@ from
 /* This version seems to run in about half the time of the other one but gives 
    identical results except that most of the null values are now 0s */
 create table if not exists df_dtdict2 as 
-select distinct cid,ddomain,ccd,mxinsts,mxfacts,mxconmod,'' ccd_list
+select distinct cid,ddomain,ccd,mxinsts,mxfacts,mxconmod
+--,'' ccd_list
 ,pats,patvis,tpats-pats pats_null,tpatvis-patvis patvis_null
 ,'v'||substr('000'||cid,-3) colcd
 -- the below are semi-human-readable, unique, and relatively short column names
