@@ -6,7 +6,8 @@ if cwd == '': cwd = '.'
 # okay, below looks screwed up because it seems like a circular reference
 # but it does the job of communicating to the functions in this module whether or
 # not the user wants verbose logging
-from df import dolog
+try: from df import dolog
+except: dolog = False
 
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
@@ -264,33 +265,85 @@ class DFMeta:
     self.inhead = inhead
     self.inmeta = inmeta
     self.suggestPolicy = suggestPolicy
-    self.incols = {kk: {
-      'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
-			      ,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
-			      ,'args':[]}]
-      } for kk,vv in zip(self.inhead,[json.loads(jj) 
-				      if re.match('\{.*\}$',str(jj)) 
-				      else jj for jj in self.inmeta])}
+    #self.incols = {kk: {
+      #'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
+			      #,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
+			      #,'args':[]}]
+      #} for kk,vv in zip(self.inhead,[json.loads(jj) 
+				      #if re.match('\{.*\}$',str(jj)) 
+				      #else jj for jj in self.inmeta])}
+    self.incols = {}
+    # correct the input headers with what the metadata actually names them as
+    #for kk,vv in zip(self.inhead,self.inmeta):
+    for ii in range(len(self.inhead)):
+      #kk_as_is_col = (re.match('\{.*\}$',str(vv))==None)
+      iiname = self.inhead[ii]; iimeta = self.inmeta[ii]
+      if iimeta == None: iimeta = ''
+      ii_as_is_col = (re.match('\{.*\}$',str(iimeta))==None)
+      # DFCols for static input columns
+      if ii_as_is_col: #kk_as_is_col
+	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
+      # DFCols for non-static input columns
+      else:
+	iimeta = json.loads(iimeta)
+	iiname = iimeta['colid']
+	self.inhead[ii] = iiname
+	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
     
-  #def setSuggestPolicy(self,suggestPolicy='auto'):
-  #  self.suggestPolicy = suggestPolicy
+    self.updRules(rules=rules,suggestions=suggestions)
     
-  def updRules(self,rules=rules2):
-    '''For each of the incols do foo.updRules(rules)'''
-    pass
+    
+  def updRules(self,rules=rules2,suggestions=None):
+    '''Update with a new ruleset, optionally with suggestion algorithm'''
+    for ii in self.incols:
+      self.incols[ii].updRules(rules,suggestions)
+    return self
   
   def updSuggestions(self,suggestions):
-    '''For each of the incols do foo.updSuggestions(suggestions)'''
-    pass
+    '''Update with a new suggestion algorithm, not needed if already passed algorithm to updRules'''
+    for ii in self.incols:
+      self.incols[ii].updSuggestions(suggestions)
+    return self
   
   def updChoices(self,choices):
     '''For each of the incols do foo.updChoices(choices)'''
     pass
     
-  def getHeaders(self,fields=['cname','extr','colmeta','args'],form='lists'):
+  def getHeaders(self,bycol=False,cols=None,*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
-    and in addition whatever the current value of suggestPolicy is'''
-    pass
+    and in addition whatever the current value of suggestPolicy is
+    
+    cols: optional list of master column names in the order they should appear
+    bycol: return output as a dictionary broken up by columns?
+    '''
+    if cols == None: cols = self.inhead
+    # any arguments other than 'cols' get passed to the getHeader()
+    # method of each of the self.incols
+    # if breaking up by columns... dictionary keyed on those column names
+    # Without any args/kwargs, this produces the output that may end up 
+    # being the user intput message format
+    if bycol:
+      return {ii: self.incols[ii].getHeader(suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols}
+    # return as unified list or dict
+    out = [self.incols[ii].getHeader(suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols]
+    # if out consists of lists... (as detected from its first element)
+    if type(out[0]) == type([]):
+      # flatten them, returning a list of dictionaries each specifying one 
+      # output column
+      return [ii for jj in out for ii in jj]
+    # if out consists of dicts... (as detected from its first element)
+    elif type(out[0]) == type({}):
+      # iterate over the contributions of all the incols except the first
+      for ii in range(1,len(out)):
+	# and extend the lists from all of them to the corresponding lists
+	# in the first in the order they appear (in the cols argument if 
+	# provided)
+	for jj in out[0].keys():
+	  out[0][jj] += out[ii][jj]
+      # and return a dictionary of lists, each list representing that 
+      # attribute from all the columns, all of them having the same length
+      # as the number of output columns, and in the same order
+      return out[0]
   
   def processRow(self,cells,pidname='PATIENT_NUM'):
     '''For each of the incols, do foo.processCell() passing each one its cell
@@ -328,30 +381,44 @@ class DFMeta:
  "location_cd":
 '''
 
-
 class DFCol:
   ''' Everything this column needs to know should be contained in the colmeta
   '''
-  def __init__(self,colmeta,colname,rules=rules2,suggestions=None):
-    self.colmeta = colmeta; self.name = colname
-    # all distinct concept codes in this column, if there are not too many
-    self.unique_codes = self.colmeta['ccd_list'].split(',')
+  def __init__(self,colmeta,colname,rules=rules2,suggestions=None,as_is_col = False):
+    self.colmeta = colmeta; self.name = colname; self.as_is_col = as_is_col;
     '''This is for later, to enable last-observation carry-forward extractors
     It compares current pid to previous so the carry-forward can be 
     restarted when the records for a new patient begin.
     '''
     self.last_pid = None
-    """This is the info column, which should be a replica of the column in the 
-    input CSV file that produced this column"""
-    self.dfcol = {'cname': colname,'extr': 'as_is'
-		    ,'colmeta':json.dumps(colmeta) if isinstance(colmeta,dict) else colmeta
-		    ,'args':[]}
     # The set of derived columns chosen by the user and by suggestions
     self.chosen = []; self.suggested = []
+    """This is the info column, which should be a replica of the column in 
+    the input CSV file that produced this column"""
+    self.dfcol = [{'cname':colname,'args':{}}]
+    # info column for non-dynamic NON persistent columns, i.e. these will 
+    # get blown away in the output
+    if colmeta == None or colmeta == '':
+      self.dfcol[0].update({'extr':'skip','rulename':'skip','colmeta':None
+			   ,'ruledesc':''' This column was automatically generated by a previous run and will be overwritten. To keep this column as a static column give it any non-null value in the second row'''})
+    # info column for the dynamic case and static persistent columns
+    else: 
+      self.dfcol[0].update({'extr': 'as_is','rulename': 'as_is'
+			   ,'colmeta':json.dumps(colmeta) 
+			   if isinstance(colmeta,dict) else colmeta
+			   ,'ruledesc':''})
+    
+    ''' Special case for static columns or ones with missing ccd_lists
+    (due to having too many concept codes for example'''
+    if self.as_is_col or self.colmeta['ccd_list'] == None:
+      self.unique_codes = ['']
+    else:
+      # all distinct concept codes in this column, if there are not too many
+      self.unique_codes = self.colmeta['ccd_list'].split(',')
+      
     # Of the rules available, the ones that are valid for this column
     self.updRules(rules,suggestions)
-    #suggrules = [self.runRule(self.rules[ii]) for ii in self.rules if self.rules[ii]['suggested']]
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     #foo = self.runRule(self.rules['true_false'])
   
   def updRules(self,rules=rules2,suggestions=None):
@@ -360,6 +427,10 @@ class DFCol:
     
     If 'suggestions' argument provided, also updates suggestions
     '''
+    
+    # for static columns
+    if self.as_is_col: return self
+  
     rules0 = {kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)}
     for ii in rules0: rules0[ii]['suggested'] = False
     self.rules = rules0
@@ -375,10 +446,16 @@ class DFCol:
     '''
     # TODO: validate suggestions before proceeding
     # empty out the current auto-generated output columns
+
+    # for static columns
+    if self.as_is_col: return self
+
     self.suggested = []
     noutputs = 0
     for ii in suggestions:
       if ii.keys()[0] in self.rules:
+	#if self.colmeta['colid'] == 'v018_Cncr_and_Tmr': #'v114_Sstlc_Prsr':
+	  #pdb.set_trace()
 	check = eval(ii.values()[0],locals(),self.colmeta)
 	self.rules[ii.keys()[0]]['suggested'] = check
 	if check:
@@ -400,10 +477,12 @@ class DFCol:
     else: whatcode = ['']
     for ii in whatcode:
       for jj in self.rules[rule]['extractors']:
+	coltmpl = jj[1]
 	if ii != '': 
-	  jj[1]=ii+'_'+jj[1]
-	out.append({'cname':jj[1].format(self.name)
-	     ,'extr':jj[0]
+	  coltmpl = ii+'_'+coltmpl
+	out.append({'cname':coltmpl.format(self.name)
+	     ,'extr':jj[0],'rulename':rule
+	     ,'ruledesc':self.rules[rule].get('ruledesc','')
 	     ,'colmeta':''
 	     ,'args':{'whatcode':ii}})
     return out
@@ -413,16 +492,35 @@ class DFCol:
     and replace self.chosen accordingly.'''
     return self
   
-  def getHeader(self,fields=['cname','extr','colmeta','args'],form='lists'
-		,suggestPolicy='auto'):
+  def getHeader(self
+    ,fields=['cname','rulename','ruledesc','extr','colmeta','args']
+    ,form='dicts',suggestPolicy='auto'):
     '''Return the fields specified by the 'fields' argument
     
     form:      if 'lists' returns each requested field as a list
-               if 'zip' returns tuples of fields, one for each column
+	       if 'dicts' returns list of dicts (all fields)
+	       (below not being implemented for now)
+               ~~if 'zip' returns tuples of fields, one for each column~~
                
     Note: NEED TO MAKE SURE getHeader and processCell return in the same order!
     '''
-    pass
+    if suggestPolicy == 'yes' and len(self.chosen) == 0: sugg = self.suggested
+    elif suggestPolicy == 'auto': 
+      sugg = [xx for xx in self.suggested 
+	      if xx.get('cname') not in [yy.get('cname') for yy in self.chosen]]
+    else: sugg = []
+    
+    header = self.chosen + sugg + self.dfcol
+    if form == 'lists':
+      out = {}
+      for ii in fields:
+	out[ii]=[jj.get(ii) for jj in header]
+      return out
+    elif form== 'dicts':
+      return header
+    else:
+      return None
+
 
   def processCell(self,celldata,pid=None,suggestPolicy='auto'):
     '''Iterates over each of {self.dfcol,self.chosen} (and, depending on
