@@ -66,22 +66,22 @@ rules = [
   
 rules2 = {
    'last_numeric': { 
-     # if this column has any numeric values return the last for each visit
+     'ruledesc':'''Last numeric value for each visit'''
      # The criteria will be executed by eval() in the context of the JSON 
      # metadata that ultimately originates from the df_dtdict
-     "criteria":"nval_num > 0"
+    ,"criteria":"nval_num > 0"
     ,"split_by_code": False
      # first value: name of extractor function, 
      # second value: template for naming column
     ,"extractors":[["last_numeric","{0}.last.num"]]}
   ,'true_false': { 
-    # if this column consists of only NULL and one other value
-     "criteria": 'True'
+     'ruledesc':'''True if occurred during visit, otherwise false.'''
+    ,"criteria": 'True'
     ,"split_by_code": False
     ,"extractors":[["true_false","{0}.tf"]]}
   ,"concat_unique": { 
-    # if this column has codes (and really anything else)
-     "criteria":"True"
+     'ruledesc':'''All unique codes that correspond to this variable recorded during visit.'''
+    ,"criteria":"True"
     ,"split_by_code": False
     ,"extractors":[["concat_unique","{0}.values"]]}
 }
@@ -96,9 +96,9 @@ noutputs is going to be a variable that tracks how many previous
 rules have already been suggested for this column
 '''
 autosuggestor = [
-   {'last_numeric': 'ccd==1 & noutputs==0'}
+   {'last_numeric': 'ccd==1 and noutputs==0'}
   #,{'median_multicol': 'ccd>1 & noutputs==0'}
-  ,{'true_false': 'ccd==1 & noutputs==0'}
+  ,{'true_false': 'ccd==1 and noutputs==0'}
   ,{'concat_unique': 'noutputs==0'}
     # TODO: multi-numeric for when ccd>1
 ]
