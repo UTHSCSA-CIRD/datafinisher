@@ -6,15 +6,16 @@ if cwd == '': cwd = '.'
 # okay, below looks screwed up because it seems like a circular reference
 # but it does the job of communicating to the functions in this module whether or
 # not the user wants verbose logging
-try: from df import dolog
-except: dolog = False
+#try: from df import dolog
+#except: dolog = False
+dolog = False
 
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
 # each pattern
 from rules import rules,rules2,autosuggestor
 
-# useful lists
+# useful listsp
 # columns that may affect the interpretation of the data
 cols_obsfact = ['instance_num','modifier_cd','valtype_cd','tval_char'
 		,'valueflag_cd','quantity_num','units_cd','location_cd'
