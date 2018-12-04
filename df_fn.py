@@ -429,7 +429,9 @@ class DFCol:
     '''
     
     # for static columns
-    if self.as_is_col: return self
+    if self.as_is_col: 
+      self.rules = {}
+      return self
   
     rules0 = {kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)}
     for ii in rules0: rules0[ii]['suggested'] = False
