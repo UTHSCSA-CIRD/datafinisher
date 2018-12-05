@@ -73,17 +73,17 @@ rules2 = {
     ,"split_by_code": False
      # first value: name of extractor function, 
      # second value: template for naming column
-    ,"extractors":[["last_numeric","{0}.last.num"]]}
+    ,"extractors":[["last_numeric","{0}_last_num"]]}
   ,'true_false': { 
      'ruledesc':'''True if occurred during visit, otherwise false.'''
     ,"criteria": 'True'
     ,"split_by_code": False
-    ,"extractors":[["true_false","{0}.tf"]]}
+    ,"extractors":[["true_false","{0}_tf"]]}
   ,"concat_unique": { 
      'ruledesc':'''All unique codes that correspond to this variable recorded during visit.'''
     ,"criteria":"True"
     ,"split_by_code": False
-    ,"extractors":[["concat_unique","{0}.values"]]}
+    ,"extractors":[["concat_unique","{0}_values"]]}
 }
 
 ''' These are criteria applied in addition to the rules ones to meet the higher
