@@ -299,8 +299,8 @@ class DFMeta:
     '''Update with a new ruleset, optionally with suggestion algorithm'''
     if rules == None:
       rules = self.rules
-      else: 
-	self.rules = rules
+    else: 
+      self.rules = rules
 	
     for ii in self.incols:
       self.incols[ii].updRules(rules,suggestions)
