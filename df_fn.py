@@ -266,6 +266,7 @@ class DFMeta:
     self.inhead = inhead
     self.inmeta = inmeta
     self.suggestPolicy = suggestPolicy
+    self.rules = rules
     #self.incols = {kk: {
       #'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
 			      #,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
@@ -291,11 +292,16 @@ class DFMeta:
 	self.inhead[ii] = iiname
 	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
     
-    self.updRules(rules=rules,suggestions=suggestions)
+    self.updRules(rules=self.rules,suggestions=suggestions)
     
     
-  def updRules(self,rules=rules2,suggestions=None):
+  def updRules(self,rules=None,suggestions=None):
     '''Update with a new ruleset, optionally with suggestion algorithm'''
+    if rules == None:
+      rules = self.rules
+      else: 
+	self.rules = rules
+	
     for ii in self.incols:
       self.incols[ii].updRules(rules,suggestions)
     return self
