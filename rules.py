@@ -74,6 +74,12 @@ rules2 = {
      # first value: name of extractor function, 
      # second value: template for naming column
     ,"extractors":[["last_numeric","{0}_last_num"]]}
+  ,'last_numeric_fltrcode':{
+    'ruledesc':'''Last numeric value of the specified code for each visit.'''
+    # TODO: add whatever the variable where the number of distinct concept cds is stored
+    ,"criteria": "nval_num > 0"
+    ,"split_by_code": True
+    ,"extractors":[["last_numeric","{0}_last_num_cd",{}]]}
   ,'true_false': { 
      'ruledesc':'''True if occurred during visit, otherwise false.'''
     ,"criteria": 'True'
