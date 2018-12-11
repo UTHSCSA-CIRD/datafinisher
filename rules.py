@@ -39,6 +39,46 @@ CSV  input file):
  'valtype_cd']
 '''
 
+'''
+The extractor rules that operate on the actual data cells have the following variables available:
+
+cell_field	source_field	type		comments
+st		start_date	date	
+cc		concept_cd	code		get vector from colmeta$ccd_list, split on comma
+mc		modifier_cd	character	actually code, but value-vector not available yet
+ix		instance_num	integer	
+vt		valtype_cd	character	actually code, but value-vector not available yet
+tc		tval_char	character	might turn out to be code
+nv		nval_num	numeric	
+vf		valueflag_cd	character	actually code, but value-vector not available yet
+qt		quantity_num	numeric		Might be integer?
+un		units_cd	character	actually code, but value-vector not available yet
+lc		location_cd	character	actually code, but value-vector not available yet
+cf		confidence_num	numeric	
+
+
+...as filters...
+
+list(
+#list(name = 'st', type = 'date')
+ list(name = 'cc', type = 'string', input = 'selectize', values=strsplit(t_dat$colmeta$ccd_list,',')[[1]]) 
+,list(name = 'mc', type = 'string', input = 'text')
+,list(name='ix',type='integer')
+,list(name = 'vt', type = 'string', input = 'text')
+,list(name = 'tc', type = 'string', input = 'text')
+,list(name='nv',type='double')
+,list(name = 'vf', type = 'string', input = 'text')
+,list(name='qt',type='double')
+,list(name = 'un', type = 'string', input = 'text')
+,list(name = 'lc', type = 'string', input = 'text')
+,list(name='cf',type='double')
+)
+
+'''
+
+
+
+
 rules = [
    { # if this column has any numeric values return the last for each visit
      "name": "last_numeric"
@@ -67,7 +107,7 @@ rules = [
 rules2 = {
    'last_numeric': { 
      'ruledesc':'''Last numeric value for each visit'''
-     # The criteria will be executed by eval() in the context of the JSON 
+      # The criteria will be executed by eval() in the context of the JSON 
      # metadata that ultimately originates from the df_dtdict
     ,"criteria":"nval_num > 0"
     ,"split_by_code": False
@@ -77,7 +117,7 @@ rules2 = {
   ,'last_numeric_fltrcode':{
     'ruledesc':'''Last numeric value of the specified code for each visit.'''
     # TODO: add whatever the variable where the number of distinct concept cds is stored
-    ,"criteria": "nval_num > 0"
+    ,"criteria": "nval_num > 0 and ccd > 1"
     ,"split_by_code": True
     ,"extractors":[["last_numeric","{0}_last_num_cd",{}]]}
   ,'true_false': { 
