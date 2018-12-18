@@ -103,7 +103,9 @@ rules = [
    }
 
 ]
-  
+
+# the following should be unique: rulesuffix, name of each rule
+# if split_by_code there must be a {1} in the rulesuffix and args must have at least one value
 rules2 = {
    'last_numeric': { 
      'ruledesc':'''Last numeric value for each visit'''
@@ -113,23 +115,48 @@ rules2 = {
     ,"split_by_code": False
      # first value: name of extractor function, 
      # second value: template for naming column
-    ,"extractors":[["last_numeric","{0}_last_num"]]}
+    #,"extractors":[["last_numeric","{0}_last_num"]]
+    ,"selector": 'all'
+    ,"fieldlist": ['nv']
+    ,"aggregator": 'last'
+    ,"rulesuffix": 'ln'
+    # ignore these unless split_by_code is True
+    ,"args": []
+    }
   ,'last_numeric_fltrcode':{
     'ruledesc':'''Last numeric value of the specified code for each visit.'''
     # TODO: add whatever the variable where the number of distinct concept cds is stored
     ,"criteria": "nval_num > 0 and ccd > 1"
     ,"split_by_code": True
-    ,"extractors":[["last_numeric","{0}_last_num_cd",{}]]}
+    #,"extractors":[["last_numeric","{0}_last_num_cd",{}]]
+    ,"selector": 'codeIn_CC'
+    ,"fieldlist": ['nv']
+    ,"aggregator": 'last'
+    ,"rulesuffix": 'lnc_{1}'
+    ,"args": ['CC']
+    }
   ,'true_false': { 
      'ruledesc':'''True if occurred during visit, otherwise false.'''
     ,"criteria": 'True'
     ,"split_by_code": False
-    ,"extractors":[["true_false","{0}_tf"]]}
+    #,"extractors":[["true_false","{0}_tf"]]
+    ,"selector": 'all'
+    ,"fieldlist": 'all'
+    ,"aggregator": 'any'
+    ,"rulesuffix": 'tf'
+    ,"args": []
+    }
   ,"concat_unique": { 
      'ruledesc':'''All unique codes that correspond to this variable recorded during visit.'''
     ,"criteria":"True"
     ,"split_by_code": False
-    ,"extractors":[["concat_unique","{0}_values"]]}
+    #,"extractors":[["concat_unique","{0}_values"]]
+    ,"selector": 'all'
+    ,"fieldlist": ['cc']
+    ,"aggregator": 'concatunique'
+    ,"rulesuffix": 'cd'
+    ,"args": []
+    }
 }
 
 ''' These are criteria applied in addition to the rules ones to meet the higher
@@ -160,6 +187,36 @@ simulated_choices = [
  }
 ]
 
+#lambda cc=None,mc=None,ix=None,vt=None,tc=None,nv=None,vf=None,qt=None,un=None,lc=None,cf=None,**kwargs: cc in CC if cc else False
+
+# these are evaluated in the scope of each top level item in a cell dict (if any) and return T/F on which to select items
+selectors = {
+   'all': lambda **kwargs: True
+  ,'codeIn_CC': lambda cc,CC,**kwargs: cc in CC if cc else False
+  ,'inactivDiag': lambda mc,**kwargs: mc in ['DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2'] if mc else False
+  ,'activeDiag': lambda mc,**kwargs: mc not in ['DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2'] if mc else False
+}
+
+# these are just fields to extract for each selected item
+fieldlists = {
+   'numeric': ['nv']
+  ,'code': ['cc']
+  ,'codemod': ['cc','mc']
+  ,'mod': ['mc']
+  ,'all': ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf']
+}
+
+# these all take a list as input and return a scalar value as output
+aggregators = {
+   'last': lambda xx,**kw: xx[-1:]
+  ,'first': lambda xx,**kw: xx[:1]
+  ,'min': min
+  ,'max': max
+  ,'any': any
+  ,'mean': lambda xx,**kw: sum(xx)/len(xx)
+  ,'median': lambda xx,**kw: sorted(xx)[len(xx)/2]
+  ,'concatunique': lambda xx,sep=';',**kw: sep.join([str(ii) for ii in xx])
+}
 
 ''' The `extractors` dict is not currently supposed to be imported by anything, 
 the active one is `testargs` in `dfx.py`. At this time, the below copy is just
