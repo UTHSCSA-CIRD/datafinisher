@@ -171,4 +171,9 @@ if __name__ == '__main__':
     # TODO: fix this path-unaware file name generator
     #if outfile=="":
     #  outfile = "data_"+args.csvin
-    update_df(args.csvin)
+    if path.isfile('testinput.py'):
+      from testinput import testheader,testmeta
+      dfm = DFMeta(testheader,testmeta,suggestions=autosuggestor)
+      dfc = dfm.incols['v036_CS_Mts_at_DX']
+      import pdb; pdb.set_trace()
+    #update_df(args.csvin)
