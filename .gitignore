@@ -1,3 +1,7 @@
+# test
+test_dumpcols.json
+testinput.py
+# data and cached
 *.db
 \#*\#
 *~
