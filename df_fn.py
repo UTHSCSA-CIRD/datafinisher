@@ -315,6 +315,23 @@ class DFMeta:
   def updChoices(self,choices):
     '''For each of the incols do foo.updChoices(choices)'''
     pass
+  
+  def get(self, key, fallback=None):
+    if(key in self.__dict__):
+      return getattr(self,key)
+    elif(key in self.incols):
+      return self.incols[key]
+    else: return fallback
+  
+  def __getitem__(self,key):
+    if(key in self.__dict__):
+      return getattr(self,key)
+    if(key in self.incols):
+      return self.incols[key]
+
+  
+  def getDict(self):
+    return vars(self)
     
   def getHeaders(self,bycol=False,cols=None,*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
@@ -514,6 +531,16 @@ class DFCol:
     '''Get the user choices (extractors, names (?), and args) 
     and replace self.chosen accordingly.'''
     return self
+  
+  def get(self,key,fallback=None):
+    if(key in self.__dict__):
+      return getattr(self,key)
+    else: return fallback
+  
+  def __getitem__(self, key): return getattr(self,key)
+  
+  def getDict(self):
+    return vars(self)
   
   def getHeader(self
     ,fields=['cname','rulename','ruledesc','extr','colmeta','args']
