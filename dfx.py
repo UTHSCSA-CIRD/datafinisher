@@ -173,7 +173,9 @@ if __name__ == '__main__':
     #  outfile = "data_"+args.csvin
     if path.isfile('testinput.py'):
       from testinput import testheader,testmeta
+      from rules import rules2
+      import pdb; pdb.set_trace()
       dfm = DFMeta(testheader,testmeta,suggestions=autosuggestor)
       dfc = dfm.incols['v036_CS_Mts_at_DX']
-      import pdb; pdb.set_trace()
+      
     #update_df(args.csvin)

@@ -1,6 +1,7 @@
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
 import json, sys
 from os.path import dirname
+from copy import deepcopy
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
 # okay, below looks screwed up because it seems like a circular reference
@@ -258,7 +259,7 @@ class DFMeta:
   Future plans: allow the first argument to be a file-handle
   '''
   def __init__(self,inhead,inmeta=None,suggestPolicy='auto'
-	       ,rules=rules2,suggestions=None):
+	       ,rules=deepcopy(rules2),suggestions=None):
     if inmeta == None:
       inmeta = ['---']*len(inhead)
     assert len(inhead) == len(inmeta), '''
@@ -266,7 +267,7 @@ class DFMeta:
     self.inhead = inhead
     self.inmeta = inmeta
     self.suggestPolicy = suggestPolicy
-    self.rules = rules
+    self.rules = deepcopy(rules)
     #self.incols = {kk: {
       #'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
 			      #,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
@@ -292,18 +293,16 @@ class DFMeta:
 	self.inhead[ii] = iiname
 	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
     
-    self.updRules(rules=self.rules,suggestions=suggestions)
+    self.updRules(rules=self.rules.copy(),suggestions=suggestions)
     
     
   def updRules(self,rules=None,suggestions=None):
     '''Update with a new ruleset, optionally with suggestion algorithm'''
-    if rules == None:
-      rules = self.rules
-    else: 
-      self.rules = rules
+    if rules != None:
+      self.rules = deepcopy(rules)
 	
     for ii in self.incols:
-      self.incols[ii].updRules(rules,suggestions)
+      self.incols[ii].updRules(deepcopy(self.rules),suggestions)
     return self
   
   def updSuggestions(self,suggestions):
@@ -408,7 +407,7 @@ class DFMeta:
 class DFCol:
   ''' Everything this column needs to know should be contained in the colmeta
   '''
-  def __init__(self,colmeta,colname,rules=rules2,suggestions=None,as_is_col = False):
+  def __init__(self,colmeta,colname,rules=deepcopy(rules2),suggestions=None,as_is_col = False):
     self.colmeta = colmeta; self.incolid = colname; self.as_is_col = as_is_col;
     '''This is for later, to enable last-observation carry-forward extractors
     It compares current pid to previous so the carry-forward can be 
@@ -450,11 +449,11 @@ class DFCol:
       self.unique_codes = self.colmeta['ccd_list'].split(',')
       
     # Of the rules available, the ones that are valid for this column
-    self.updRules(rules,suggestions)
+    self.updRules(deepcopy(rules),suggestions)
     #import pdb; pdb.set_trace()
     #foo = self.runRule(self.rules['true_false'])
   
-  def updRules(self,rules=rules2,suggestions=None):
+  def updRules(self,rules=deepcopy(rules2),suggestions=None):
     '''Replace the current rules with subset of new ones that are valid 
     for this columnn based on their built-in validity checks and colmeta
     
@@ -466,7 +465,7 @@ class DFCol:
       self.rules = {}
       return self
   
-    rules0 = {kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)}
+    rules0 = deepcopy({kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)})
     for ii in rules0: 
       rules0[ii]['suggested'] = False
       rules0[ii]['parent_name'] = self.incolid
