@@ -2,6 +2,7 @@ import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
 import json, sys
 from os.path import dirname
 from copy import deepcopy
+from base64 import urlsafe_b64encode
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
 # okay, below looks screwed up because it seems like a circular reference
@@ -14,7 +15,7 @@ dolog = False
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
 # each pattern
-from rules import rules,rules2,autosuggestor
+from rules import rules,rules2,autosuggestor, aggregators,fieldlists,selectors,rules_fallback,i2b2fields
 
 # useful listsp
 # columns that may affect the interpretation of the data
@@ -327,11 +328,30 @@ class DFMeta:
       return getattr(self,key)
     if(key in self.incols):
       return self.incols[key]
-
+  
+  def getStatIDs(self):
+    return [self.incols[xx]['incolid'] for xx in self.incols if self.incols[xx]['as_is_col']]
+    
+  def getDynIDs(self):
+    return [self.incols[xx]['incolid'] for xx in self.incols if not self.incols[xx]['as_is_col']]
   
   def getDict(self):
     return vars(self)
-    
+  
+  # arguments besides dynonly are passed to the DFCol getColIDs method
+  # dynonly can be 'dyn' (dynamic cols only),'sta' (static cols only), or 'all'
+  # 
+  def getColIDs(self,dynorstat='dyn',**kwargs):
+    out = []
+    if dynorstat == 'dyn':
+      cols = self.getDynIDs()
+    elif dynorstat == 'sta':
+      cols = self.getStatIDs()
+    else: cols = self.incols
+    for ii in cols:
+      out+=self[ii].getColIDs(**kwargs)
+    return out
+
   def getHeaders(self,bycol=False,cols=None,*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
     and in addition whatever the current value of suggestPolicy is
@@ -453,6 +473,92 @@ class DFCol:
     #import pdb; pdb.set_trace()
     #foo = self.runRule(self.rules['true_false'])
   
+  '''
+  rules_fallback = {
+  'ruledesc':'(not documented)'
+  ,'criteria':'True'
+  ,'split_by_code': False
+  ,'selector':selectors['all']
+  ,'fieldlist':fieldlists['codemod']
+  ,'aggregator': aggregators['concatunique']
+  ,'args': []
+  ,'suggested': False
+  # rulesuffix needs to be unique, has to be set manually or be empty?
+  # rulename needs to be passed in
+  # short_incolid  needed to make shortname
+  # 
+  }
+  '''
+  
+  # TODO: replace the payload of updRules() with a call to this function after testing it out
+  def insertRule(self,rule,rulename,fallback=rules_fallback,selectors=selectors
+		 ,fieldlists=fieldlists,aggregators=aggregators,fieldsep='/',i2b2fields=i2b2fields):
+    check = eval(rule.get('criteria',fallback['criteria']),self.colmeta)
+    if(check):
+      rule = deepcopy(rule)
+      if not rule.get('suggested'): rule['suggested'] = fallback['suggested']
+      if not rule.get('ruledesc'): 
+	raise ValueError('Rule %s must have a brief description (in its ruledesc field)' % rulename)
+      #if not rule.get('criteria'): rule['criteria'] = fallback['criteria']
+      if not rule.get('split_by_code'): rule['split_by_code'] = fallback['split_by_code']
+
+      myselector = rule.get('selector')
+      if not myselector: rule['selector'] = fallback['selector']
+      else:
+	if not callable(myselector):
+	  if type(myselector) == str:
+	    if myselector in selectors:
+	      rule['selector'] = selectors[myselector]
+	    else: rule['selector'] = eval('''lambda cc=None,mc=None,ix=None,vt=None
+					,tc=None,nv=None,vf=None
+					,qt=None,un=None,lc=None,cf=None
+					,**kwargs:'''+rule['selector'])
+	  else: raise ValueError('In rule %s the selector needs to be an str or a callable object' % rulename)
+	  
+      myfieldlist = rule.get('fieldlist')
+      if not myfieldlist: rule['fieldlist'] = fallback['fieldlist']
+      elif not type(myfieldlist) in [str,list]: 
+	raise ValueError('''
+	  Rule %s must have a list of character strings or the name of an existing field list in its fieldlist attribute
+	  ''' % rulename)
+      elif type(myfieldlist) == str and myfieldlist in fieldlists:
+	    rule['fieldlist'] = fieldlists[myfieldlist]
+      else:
+	if type(myfieldlist) == str: myfieldlist = [myfieldlist]
+	invalidfields = set(myfieldlist)-(i2b2fields)
+	if len(invalidfields)>0:
+	  raise ValueError('Rule %s fieldlist attribute references nonexistant fields %s' % (rulename,invalidfields))
+	else: rule['fieldlist'] = myfieldlist
+	
+      myaggregator = rule.get('aggregator')
+      if not myaggregator: rule['aggregator'] = fallback['aggregator']
+      elif not callable(myaggregator) and myaggregator in aggregators:
+	rule['aggregator'] = aggregators[myaggregator]
+      else:
+	  raise ValueError('''
+	    Rule %s aggregator attribute must be either callable or the name of an existing item in aggregators''' % rulename)
+
+      rule['rulename'] = rulename
+      
+      myrulesuffix = rule.get('rulesuffix')
+      usedsuffixes = [vv['rulesuffix'] for vv in self.rules.values()]
+      if not myrulesuffix or myrulesuffix in usedsuffixes:
+	if not rulename[:8] in [vv['rulesuffix'] for vv in self.rules.values()]:
+	  rule['rulesuffix'] = rulename[:8]
+	else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
+	
+      rule['parent_name'] = self.incolid
+      mylongname = rule.get('longname')
+      if not mylongname or mylongname in [vv['longname'] for vv in self.rules.values()]: 
+	self.incolid+'_'+rule['rulesuffix']
+      myshortname = rule.get('shortname')
+      if not myshortname or myshortname in [vv['shortname'] for vv in self.rules.values()]: 
+	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']
+      if not rule.get('addbid'): rule['addbid'] = 'ab-'+rule['shortname']
+      if not rule.get('selid'): rule['selid'] = 'sl-'+rule['shortname']
+      return rule
+    else: return None
+  
   def updRules(self,rules=deepcopy(rules2),suggestions=None):
     '''Replace the current rules with subset of new ones that are valid 
     for this columnn based on their built-in validity checks and colmeta
@@ -468,6 +574,7 @@ class DFCol:
     rules0 = deepcopy({kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)})
     for ii in rules0: 
       rules0[ii]['suggested'] = False
+      rules0[ii]['rulename'] = ii
       rules0[ii]['parent_name'] = self.incolid
       rules0[ii]['shortname'] = self.short_incolid+'_'+rules0[ii]['rulesuffix']
       rules0[ii]['longname'] = self.incolid+'_'+rules0[ii]['rulesuffix']
@@ -530,6 +637,30 @@ class DFCol:
     '''Get the user choices (extractors, names (?), and args) 
     and replace self.chosen accordingly.'''
     return self
+  
+  # return a flat list for each child object of the type specified and rules are specified
+  # currently only 'chosen' and 'rules' values are supported/tested as values for childtype
+  def getColIDs(self,ids=['incolid','divIDavailable','divIDchosen','incoldesc'
+			  ,'short_incolid','as_is_col']
+		,childids=[],childtype=None,asdicts=False):
+    
+    # make sure they're lists
+    if type(ids) == str: ids = [ids]
+    if type(childids) == str: childids = [childids]
+    
+    outself = [self.get(ii,None) for ii in ids]
+    ch = self.get(childtype)
+    if ch and len(childids) > 0:
+      # assuming that if not a dict ch behaves like a list (e.g. the 'chosen' object)
+      # will probably error out if it's something other than dict or list
+      if type(ch) == dict:
+	out = [outself+[ch[ii].get(jj,None) for jj in childids] for ii in ch]
+      else: out = [outself+[xx.get(jj,None) for jj in childids] for xx in ch]
+    else: out = [outself]
+    #import pdb; pdb.set_trace()
+    if(asdicts):
+      return [dict(zip(ids+childids,xx)) for xx in out]
+    else: return out
   
   def get(self,key,fallback=None):
     if(key in self.__dict__):
