@@ -473,23 +473,6 @@ class DFCol:
     #import pdb; pdb.set_trace()
     #foo = self.runRule(self.rules['true_false'])
   
-  '''
-  rules_fallback = {
-  'ruledesc':'(not documented)'
-  ,'criteria':'True'
-  ,'split_by_code': False
-  ,'selector':selectors['all']
-  ,'fieldlist':fieldlists['codemod']
-  ,'aggregator': aggregators['concatunique']
-  ,'args': []
-  ,'suggested': False
-  # rulesuffix needs to be unique, has to be set manually or be empty?
-  # rulename needs to be passed in
-  # short_incolid  needed to make shortname
-  # 
-  }
-  '''
-  
   # TODO: replace the payload of updRules() with a call to this function after testing it out
   # can be called by several different functions, each specifying a different set of tests to run
   
