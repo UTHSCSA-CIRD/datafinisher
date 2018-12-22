@@ -198,8 +198,10 @@ rules_fallback = {
   ,'criteria':'True'
   ,'split_by_code': False
   ,'selector':selectors['all']
+  ,'selector_stronly':'all'
   ,'fieldlist':fieldlists['codemod']
   ,'aggregator': aggregators['concatunique']
+  ,'aggregator_stronly':'concatunique'
   ,'args': []
   ,'suggested': False
   # rulesuffix needs to be unique, has to be set manually or be empty?
