@@ -491,71 +491,169 @@ class DFCol:
   '''
   
   # TODO: replace the payload of updRules() with a call to this function after testing it out
-  def insertRule(self,rule,rulename,fallback=rules_fallback,selectors=selectors
-		 ,fieldlists=fieldlists,aggregators=aggregators,fieldsep='/',i2b2fields=i2b2fields):
-    check = eval(rule.get('criteria',fallback['criteria']),self.colmeta)
+  # can be called by several different functions, each specifying a different set of tests to run
+  
+  # rules:
+  #	display: longname*, ruledesc, selid@, addbid@
+  #	needed by display: rulesuffix+, parent_name+, shortname*, split_by_code, args
+  # prep chosen:
+  #	display: longname*, delbid@, ruledesc
+  #	needed by display: parent_name, (shortname*), rulesuffix, args:selected
+  # add chosen:
+  #	direct function: selector, fieldlist, aggregator, longname, args:selected
+  #
+  # usage:
+  # updRules... valfixRule(rule,rulename,['longname','addbid','selbid','split_by_code','parent_name','rulename'
+  #					  ,'ruledesc','rulesuffix','selector_stronly'])
+  # prepChosen... valfixRule(rule,rulename,['longname','delbid','split_by_code','parent_name','rulename'
+  #					  ,'ruledesc','rulesuffix','selector_stronly'])
+  # addchosen... valfixRule(rule,rulename,['longname','selector','fieldlist','aggregator'])
+  
+  def valfixRule(self,rule,rulename
+		 ,validateorfix=[],usedeepcopy=True, skipcheck=False
+		 ,fallback=rules_fallback,selectors=selectors
+		 ,fieldlists=fieldlists,aggregators=aggregators,fieldsep='/'
+		 ,i2b2fields=i2b2fields):
+    
+    check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
+    
     if(check):
-      rule = deepcopy(rule)
-      if not rule.get('suggested'): rule['suggested'] = fallback['suggested']
-      if not rule.get('ruledesc'): 
-	raise ValueError('Rule %s must have a brief description (in its ruledesc field)' % rulename)
-      #if not rule.get('criteria'): rule['criteria'] = fallback['criteria']
-      if not rule.get('split_by_code'): rule['split_by_code'] = fallback['split_by_code']
+      if usedeepcopy: rule = deepcopy(rule)
+      
+      #section # generally useful
+      
+      if 'rulename' in validateorfix: rule['rulename'] = rulename
 
-      myselector = rule.get('selector')
-      if not myselector: rule['selector'] = fallback['selector']
-      else:
-	if not callable(myselector):
-	  if type(myselector) == str:
-	    if myselector in selectors:
-	      rule['selector'] = selectors[myselector]
-	    else: rule['selector'] = eval('''lambda cc=None,mc=None,ix=None,vt=None
+      if 'parent_name' in validateorfix: rule['parent_name'] = self.incolid
+      
+      if 'suggested' in validateorfix:
+	if not rule.get('suggested'): rule['suggested'] = fallback['suggested']
+      
+      if 'ruledesc' in validateorfix:
+	if not rule.get('ruledesc'): 
+	  raise ValueError('Rule %s must have a brief description (in its ruledesc field)' % rulename)
+
+      if 'split_by_code' in validateorfix:
+	if not rule.get('split_by_code'): 
+	  rule['split_by_code'] = len(rule.get('args',()))>0
+
+      # the long/shortname fields depend on rulesuffix and should trigger its rebuild also
+      if set(['rulesuffix','longname','shortname']) & set(validateorfix):
+	myrulesuffix = rule.get('rulesuffix')
+	usedsuffixes = [vv['rulesuffix'] for vv in self.rules.values()]
+	if not myrulesuffix or myrulesuffix in usedsuffixes:
+	  if not rulename[:8] in [vv['rulesuffix'] for vv in self.rules.values()]:
+	    rule['rulesuffix'] = rulename[:8]
+	  else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
+      #end_section
+	  
+      #section # always overwrite when applicable even if exists
+      
+      if 'longname' in validateorfix:
+	#mylongname = rule.get('longname')
+	#if not mylongname or mylongname in [vv['longname'] for vv in self.rules.values()]: 
+	rule['longname'] = self.incolid + '_' + rule['rulesuffix']
+	
+      # since our *id fields depend on shortname, those should trigger its rebuild also
+      if set(['shortname','addbid','selid','delbid']) & set(validateorfix):
+	#myshortname = rule.get('shortname')
+	#if not myshortname or myshortname in [vv['shortname'] for vv in self.rules.values()]: 
+	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']
+	  
+      # for addRule
+      if 'addbid' in validateorfix: rule['addbid'] = 'ab-'+rule['shortname']
+      if 'selid' in validateorfix: rule['selid'] = 'sl-'+rule['shortname']
+      # for addChosen
+      if 'delbid' in validateorfix: rule['delbid'] = 'db-'+rule['shortname']
+      
+      #if not rule.get('criteria'): rule['criteria'] = fallback['criteria']
+      #end_section
+      
+      #section # syntax-only checks, no creation of compiled code
+      # ...but names of selectors can be inserted and compiled code is permitted
+      # if it already exists unless selector_stronly is set
+      if set(['selector_stronly','selector_checkonly']) & set(validateorfix):
+	myselector = rule.get('selector')
+	if not myselector: rule['selector'] = fallback['selector_stronly']
+	elif type(myselector) != str: 
+	  if 'selector_stronly' in validateorfix: raise ValueError('''
+	    In rule %s the 'selector' argument may only be a string. Currently it is a %s :
+	    %s
+	    ''' % (rulename, type(myselector),myselector))
+	  elif not callable(myselector): raise ValueError('''
+	    In rule %s the 'selector' argument needs to be valid python code. Currently it is:
+	    %s
+	    ''' % (rulename,myselector))
+	else:
+	  try: compile(myselector,'<string>','eval')
+	  except: raise SyntaxError('''
+		  Rule %s has a selector argument that is not valid python code: 
+		  %s
+		  ''' % (rulename,myselector))
+	
+      if 'aggregagor_stronly' in validateorfix:
+	myaggregator = rule.get('aggregator')
+	if not myaggregator: rule['aggregator'] = fallback['aggregagor_stronly']
+	elif type(myaggregator) != str: raise ValueError('''
+	  Rule %s 'aggregator' argument must be a string
+	  ''' % rulename)
+	elif not myaggregator in aggregators: raise ValueError('''
+	  Rule %s 'aggregator' argument must be one of the following:
+	  %s''' % (rulename,aggregators.keys()))
+	else: pass
+	  
+      #end_section
+      
+      
+      #section # needed for creating an outCol object
+      # TODO: don't create lambdas here, only code for the outCol.__init__ to compile into callables
+      if 'selector' in validateorfix:
+	myselector = rule.get('selector')
+	if not myselector: rule['selector'] = fallback['selector']
+	else:
+	  if not callable(myselector):
+	    if type(myselector) == str:
+	      if myselector in selectors:
+		rule['selector'] = selectors[myselector]
+	      else: 
+		try: compile(myselector,'<string>','eval')
+		except: raise SyntaxError('''
+		  Rule %s has a selector argument that is not valid python code: 
+		  %s
+		  ''' % (rulename,myselector))
+		# TODO: just compile it and let the outCol.__init__() call it
+		rule['selector'] = eval('''lambda cc=None,mc=None,ix=None,vt=None
 					,tc=None,nv=None,vf=None
 					,qt=None,un=None,lc=None,cf=None
 					,**kwargs:'''+rule['selector'])
-	  else: raise ValueError('In rule %s the selector needs to be an str or a callable object' % rulename)
-	  
-      myfieldlist = rule.get('fieldlist')
-      if not myfieldlist: rule['fieldlist'] = fallback['fieldlist']
-      elif not type(myfieldlist) in [str,list]: 
-	raise ValueError('''
-	  Rule %s must have a list of character strings or the name of an existing field list in its fieldlist attribute
-	  ''' % rulename)
-      elif type(myfieldlist) == str and myfieldlist in fieldlists:
-	    rule['fieldlist'] = fieldlists[myfieldlist]
-      else:
-	if type(myfieldlist) == str: myfieldlist = [myfieldlist]
-	invalidfields = set(myfieldlist)-(i2b2fields)
-	if len(invalidfields)>0:
-	  raise ValueError('Rule %s fieldlist attribute references nonexistant fields %s' % (rulename,invalidfields))
-	else: rule['fieldlist'] = myfieldlist
-	
-      myaggregator = rule.get('aggregator')
-      if not myaggregator: rule['aggregator'] = fallback['aggregator']
-      elif not callable(myaggregator) and myaggregator in aggregators:
-	rule['aggregator'] = aggregators[myaggregator]
-      else:
-	  raise ValueError('''
-	    Rule %s aggregator attribute must be either callable or the name of an existing item in aggregators''' % rulename)
-
-      rule['rulename'] = rulename
+	    else: raise ValueError('In rule %s the selector needs to be an str or a callable object' % rulename)
       
-      myrulesuffix = rule.get('rulesuffix')
-      usedsuffixes = [vv['rulesuffix'] for vv in self.rules.values()]
-      if not myrulesuffix or myrulesuffix in usedsuffixes:
-	if not rulename[:8] in [vv['rulesuffix'] for vv in self.rules.values()]:
-	  rule['rulesuffix'] = rulename[:8]
-	else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
+      if 'fieldlist' in validateorfix:
+	myfieldlist = rule.get('fieldlist')
+	if not myfieldlist: rule['fieldlist'] = fallback['fieldlist']
+	elif not type(myfieldlist) in [str,list]: 
+	  raise ValueError('''
+	    Rule %s must have a list of character strings or the name of an existing field list in its fieldlist attribute
+	    ''' % rulename)
+	elif type(myfieldlist) == str and myfieldlist in fieldlists:
+	      rule['fieldlist'] = fieldlists[myfieldlist]
+	else:
+	  if type(myfieldlist) == str: myfieldlist = [myfieldlist]
+	  invalidfields = set(myfieldlist)-(i2b2fields)
+	  if len(invalidfields)>0:
+	    raise ValueError('Rule %s fieldlist attribute references nonexistant fields %s' % (rulename,invalidfields))
+	  else: rule['fieldlist'] = myfieldlist
 	
-      rule['parent_name'] = self.incolid
-      mylongname = rule.get('longname')
-      if not mylongname or mylongname in [vv['longname'] for vv in self.rules.values()]: 
-	self.incolid+'_'+rule['rulesuffix']
-      myshortname = rule.get('shortname')
-      if not myshortname or myshortname in [vv['shortname'] for vv in self.rules.values()]: 
-	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']
-      if not rule.get('addbid'): rule['addbid'] = 'ab-'+rule['shortname']
-      if not rule.get('selid'): rule['selid'] = 'sl-'+rule['shortname']
+      if 'aggregator' in validateorfix:
+	myaggregator = rule.get('aggregator')
+	if not myaggregator: rule['aggregator'] = fallback['aggregator']
+	elif not callable(myaggregator) and myaggregator in aggregators:
+	  rule['aggregator'] = aggregators[myaggregator]
+	else:
+	    raise ValueError('''
+	      Rule %s aggregator attribute must be either callable or the name of an existing item in aggregators''' % rulename)
+      #end_section
+
       return rule
     else: return None
   
