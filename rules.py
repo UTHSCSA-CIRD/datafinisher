@@ -166,7 +166,7 @@ rules2 = {
     ,"selector": 'codeIn_CC'
     ,"fieldlist": ['nv']
     ,"aggregator": 'last'
-    ,"rulesuffix": 'lnc_{1}'
+    ,"rulesuffix": 'lnc'
     ,"args": ['CC']
     }
   ,'true_false': { 
