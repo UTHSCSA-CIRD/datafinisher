@@ -247,6 +247,35 @@ def dropletters(intext):
 ### for json parsing 
 #section json
 
+# Take an object and return a sanitized string representation with customizable
+# delimiters
+def ob2tag(obj,delim='_',maxlen=8): 
+  return re.sub('_',delim
+		,re.sub('_+','_'
+		  ,re.sub('^_|_$',''
+		    ,re.sub('\W+','_',str(obj)))))[:maxlen]
+
+# If str 'name' is in list 'ref' add a non-colliding suffix, enforcing a
+# maximal overall length
+
+def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999):
+  # The maximal length of the base name that will not exceed maxlen with suffix
+  nmax = maxlen - pad - len(sep)
+  # suffix regexp based on supplied sep and pad args
+  tailrx = re.compile('%s[0-9]{%d,}$' % (sep,pad))
+  # strip this suffix from the input name and truncate at nmax characters
+  strname = tailrx.sub('',name)[:nmax]
+  # strip out the suffixes from the ref list and find the number of stripped 
+  # items in list that match stripped name
+  matched = len([yy for yy in [tailrx.sub('',xx) for xx in ref] 
+		 if yy in (strname,name,name[:maxlen])])
+  # modify the name to have a unique suffix, padded as per pad argument
+  newname = ('%s%s%0'+str(pad)+'d') % (strname,sep,matched) if matched else name[:maxlen]
+  #else: matched = strname
+  return newname
+
+
+
 class DFMeta: 
   '''Initialize with a list of column names and metadata 
   some of which is assumed to be strings convertible to dicts by wy of JSON
@@ -435,7 +464,7 @@ class DFCol:
     '''
     self.last_pid = None
     # The set of derived columns chosen by the user and by suggestions
-    self.chosen = []; self.suggested = []
+    self.chosen = {}; self.suggested = []
     """This is the info column, which should be a replica of the column in 
     the input CSV file that produced this column"""
     self.dfcol = [{'cname':colname,'args':{}}]
@@ -473,9 +502,7 @@ class DFCol:
     #import pdb; pdb.set_trace()
     #foo = self.runRule(self.rules['true_false'])
   
-  # TODO: replace the payload of updRules() with a call to this function after testing it out
-  # can be called by several different functions, each specifying a different set of tests to run
-  
+  '''
   # rules:
   #	display: longname*, ruledesc, selid@, addbid@
   #	needed by display: rulesuffix+, parent_name+, shortname*, split_by_code, args
@@ -486,22 +513,42 @@ class DFCol:
   #	direct function: selector, fieldlist, aggregator, longname, args:selected
   #
   # usage:
-  # updRules... valfixRule(rule,rulename,['longname','addbid','selbid','split_by_code','parent_name','rulename'
+  # updRules... valfixRule(rule,rulename,['longname','addbid','selid','split_by_code','parent_name','rulename'
   #					  ,'ruledesc','rulesuffix','selector_stronly'])
   # prepChosen... valfixRule(rule,rulename,['longname','delbid','split_by_code','parent_name','rulename'
   #					  ,'ruledesc','rulesuffix','selector_stronly'])
   # addchosen... valfixRule(rule,rulename,['longname','selector','fieldlist','aggregator'])
-  
-  def valfixRule(self,rule,rulename
+  '''
+  def valfixRule(self,rule,rulename=None
 		 ,validateorfix=[],usedeepcopy=True, skipcheck=False
 		 ,fallback=rules_fallback,selectors=selectors
 		 ,fieldlists=fieldlists,aggregators=aggregators,fieldsep='/'
-		 ,i2b2fields=i2b2fields):
-    
+		 ,i2b2fields=i2b2fields
+		 ,userArgs={}):
     check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
-    
     if(check):
       if usedeepcopy: rule = deepcopy(rule)
+      
+      # fill in missing rulename if available
+      if not rulename:
+	rulename = rule.get('rulename')
+	if not rulename: raise ValueError('''
+	  Missing 'rulename' and no embedded copy in 'rule' argument on which
+	  to fall back.''')
+      
+      #section # dependencies
+      # ... because some checks implicitly require other checks
+      if 'userinput' in validateorfix:
+	if not 'split_by_code' in validateorfix: validateorfix += ['split_by_code']
+	if not 'rulesuffix' in validateorfix: validateorfix += ['rulesuffix']
+      
+      if set(['longname','shortname']) & set(validateorfix):
+	if not 'rulesuffix' in validateorfix: validateorfix += ['rulesuffix']
+      
+      if set(['addbid','selid','delbid']) & set(validateorfix):
+	if not 'shortname' in validateorfix: validateorfix += ['shortname']
+      
+      #end_section
       
       #section # generally useful
       
@@ -521,13 +568,28 @@ class DFCol:
 	  rule['split_by_code'] = len(rule.get('args',()))>0
 
       # the long/shortname fields depend on rulesuffix and should trigger its rebuild also
-      if set(['rulesuffix','longname','shortname']) & set(validateorfix):
+      if 'rulesuffix' in validateorfix:
+	# if there are user arguments, base the suffix on those
 	myrulesuffix = rule.get('rulesuffix')
-	usedsuffixes = [vv['rulesuffix'] for vv in self.rules.values()]
-	if not myrulesuffix or myrulesuffix in usedsuffixes:
-	  if not rulename[:8] in [vv['rulesuffix'] for vv in self.rules.values()]:
-	    rule['rulesuffix'] = rulename[:8]
-	  else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
+	usedsuffixes = [vv['rulesuffix'] for kk,vv in self.rules.items() if kk!=rulename]
+	rule['rulesuffix'] = makeTailUnq(myrulesuffix,ref=usedsuffixes,sep='',maxlen=8)
+	if(rule['rulesuffix']!=myrulesuffix): print('''
+	  Warning: in rule %s, the 'rulesuffix' argument was either missing or collided with
+	  a rulesuffix for an existing rule.
+	  ''' % rulename)
+	#if not myrulesuffix or myrulesuffix[:8] in usedsuffixes:
+	  #if not rulename[:8] in [vv['rulesuffix'] for vv in self.rules.values()]:
+	    #rule['rulesuffix'] = rulename[:8]
+	  #else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
+	  
+      # if userArgs supplied and required by rule, extend the rulesuffix to 
+      # distinguish from instances of that rule with different userArgs
+      if 'userinput' in validateorfix and rule.get('split_by_code'):
+	if len(userArgs)==0: raise ValueError('''
+	  Rule %s requires non-empty user input''' % rulename)
+	else:
+	  rule['rulesuffix'] = rule['rulesuffix']+ob2tag(userArgs)
+
       #end_section
 	  
       #section # always overwrite when applicable even if exists
@@ -538,7 +600,7 @@ class DFCol:
 	rule['longname'] = self.incolid + '_' + rule['rulesuffix']
 	
       # since our *id fields depend on shortname, those should trigger its rebuild also
-      if set(['shortname','addbid','selid','delbid']) & set(validateorfix):
+      if 'shortname' in validateorfix:
 	#myshortname = rule.get('shortname')
 	#if not myshortname or myshortname in [vv['shortname'] for vv in self.rules.values()]: 
 	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']
@@ -584,7 +646,7 @@ class DFCol:
 	  Rule %s 'aggregator' argument must be one of the following:
 	  %s''' % (rulename,aggregators.keys()))
 	else: pass
-	  
+	
       #end_section
       
       
@@ -647,6 +709,36 @@ class DFCol:
     If 'suggestions' argument provided, also updates suggestions
     '''
     
+    # if doesn't yet have rules, create them
+    if not hasattr(self,'rules'): self.rules = {}
+    
+    # for static columns
+    if self.as_is_col: 
+      return self
+    
+    '''
+    Update with all valid rules; The outer comprehension selects the 
+    valid rules (i.e. not None values) and the inner one actually does
+    the validity check and fixes missing/non-canonical values
+    
+    Output from actual statement ignored.
+    '''
+    [self.rules.update({ii:jj}) for ii,jj in 
+     {kk: self.valfixRule(vv,kk,['longname','addbid','selid','split_by_code'
+				,'parent_name','rulename','ruledesc'
+				,'rulesuffix','selector_stronly']) for kk,vv in
+     rules.items()}.items() if jj]
+    if suggestions != None: self.updSuggestions(suggestions)
+    return self
+
+  
+  def updRules_old(self,rules=deepcopy(rules2),suggestions=None):
+    '''Replace the current rules with subset of new ones that are valid 
+    for this columnn based on their built-in validity checks and colmeta
+    
+    If 'suggestions' argument provided, also updates suggestions
+    '''
+    
     # for static columns
     if self.as_is_col: 
       self.rules = {}
@@ -679,40 +771,76 @@ class DFCol:
     if self.as_is_col: return self
 
     self.suggested = []
+    # noutputs is needed by some rules which reference it
     noutputs = 0
     for ii in suggestions:
       if ii.keys()[0] in self.rules:
 	check = eval(ii.values()[0],locals(),self.colmeta)
 	self.rules[ii.keys()[0]]['suggested'] = check
-	if check:
-	  self.suggested+=self.runRule(ii.keys()[0])
+	#if check:
+	  #self.suggested+=self.runRule(ii.keys()[0])
 	noutputs += check
     return self
   
   def runRule(self,rule):
-    ''' 
-    rule: the NAME of a rule in self.rules
-    
-    return 'cname','extr','colmeta' (None),'args' {}
-    if split_by_code, repeat this for every code in self.colmeta.ccd_list
     '''
-    assert rule in self.rules, "Not the name of a valid rule"
-    out = []
-    if self.rules[rule]['split_by_code']:
-      whatcode = self.unique_codes.split(',')
-    else: whatcode = ['']
-    #for ii in whatcode:
-      #for jj in self.rules[rule]['extractors']:
-	#coltmpl = jj[1]
-	#if ii != '': 
-	  #coltmpl = ii+'_'+coltmpl
-	#out.append({'cname':coltmpl.format(self.name)
-	     #,'extr':jj[0],'rulename':rule
-	     #,'ruledesc':self.rules[rule].get('ruledesc','')
-	     #,'colmeta':''
-	     #,'args':{'whatcode':ii}})
-    return out
-	  
+    #rule: the NAME of a rule in self.rules
+    
+    #return 'cname','extr','colmeta' (None),'args' {}
+    #if split_by_code, repeat this for every code in self.colmeta.ccd_list
+    #
+    #assert rule in self.rules, "Not the name of a valid rule"
+    #out = []
+    #if self.rules[rule]['split_by_code']:
+      #whatcode = self.unique_codes.split(',')
+    #else: whatcode = ['']
+    ##for ii in whatcode:
+      ##for jj in self.rules[rule]['extractors']:
+	##coltmpl = jj[1]
+	##if ii != '': 
+	  ##coltmpl = ii+'_'+coltmpl
+	##out.append({'cname':coltmpl.format(self.name)
+	     ##,'extr':jj[0],'rulename':rule
+	     ##,'ruledesc':self.rules[rule].get('ruledesc','')
+	     ##,'colmeta':''
+	     ##,'args':{'whatcode':ii}})
+    #return out
+    '''
+    pass
+	
+  '''Generate unique tag if there are args
+  '''
+  def prepChosen(self,rule,userArgs=[]):
+    # valfixRule(rule,name)
+    if len(userArgs) > 0:
+      if type(userArgs) == dict:
+	userArgsClean = [re.sub('[^\w:|]','',str(xx)) for xx in userArgs.values()]
+      elif type(userArgs) == list:
+	userArgsClean = [re.sub('[^\w:|]','',str(xx)) for xx in userArgs]
+      else: raise ValueError('''
+	The 'userArgs' argument must be either a list or a dict for prepChosen''')
+    userArgsClean = userArgs
+    rule = self.valfixRule(rule,None,['longname','delbid','parent_name'
+				     ,'rulename','ruledesc','selector_stronly'
+				     ,'userinput'],userArgs=userArgsClean)
+    # Is the same pair of rulename and userArgs already in chosen?
+    match = [kk for kk,vv in self.chosen.items() 
+	     if vv['rulename']==rule['rulename'] and vv['userArgs']==userArgsClean]
+    # suffixes from items other than the match above
+    othersuff = [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk not in match]
+    mysuffix = rule['rulesuffix']
+    # Are there any suffix collisions?
+    if mysuffix in othersuff:
+      # If so, resolve them via makeTailUnq()
+      rule['rulesuffix'] = makeTailUnq(mysuffix,ref=othersuff,sep='',maxlen=8)
+      # rerun valfixRule() just to update the longname, delbid, and their dependencies
+      # to reflect the now unique rulesuffix
+      rule = self.valfixRule(rule,None,['longname','delbid'])
+      foo = 'rerun'
+      #TODO: re-confirm that rulename is still unique, maybe a while loop?
+    if not match: match = [rule['longname']]
+    self.chosen[match[0]] = rule
+    self.chosen[match[0]]['userArgs'] = userArgsClean
   
   def updChoices(self,choices):
     '''Get the user choices (extractors, names (?), and args) 
