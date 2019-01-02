@@ -259,7 +259,7 @@ def ob2tag(obj,delim='_',maxlen=8):
 # maximal overall length
 
 def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999):
-  # The maximal length of the base name that will not exceed maxlen with suffix
+  '''The maximal length of the base name that will not exceed maxlen with suffix'''
   nmax = maxlen - pad - len(sep)
   # suffix regexp based on supplied sep and pad args
   tailrx = re.compile('%s[0-9]{%d,}$' % (sep,pad))
@@ -516,15 +516,15 @@ class DFCol:
   # updRules... valfixRule(rule,rulename,['longname','addbid','selid','split_by_code','parent_name','rulename'
   #					  ,'ruledesc','rulesuffix','selector_stronly'])
   # prepChosen... valfixRule(rule,rulename,['longname','delbid','split_by_code','parent_name','rulename'
-  #					  ,'ruledesc','rulesuffix','selector_stronly'])
+  #					  ,'ruledesc','rulesuffix','selector_stronly','dividchosen'])
   # addchosen... valfixRule(rule,rulename,['longname','selector','fieldlist','aggregator'])
   '''
-  def valfixRule(self,rule,rulename=None
-		 ,validateorfix=[],usedeepcopy=True, skipcheck=False
-		 ,fallback=rules_fallback,selectors=selectors
-		 ,fieldlists=fieldlists,aggregators=aggregators,fieldsep='/'
-		 ,i2b2fields=i2b2fields
-		 ,userArgs={}):
+  
+  def valfixRule(
+    self,rule,rulename=None,validateorfix=[],usedeepcopy=True, skipcheck=False
+    ,fallback=rules_fallback,selectors=selectors,fieldlists=fieldlists
+    ,aggregators=aggregators,fieldsep='/',i2b2fields=i2b2fields,userArgs={}
+  ):
     check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
     if(check):
       if usedeepcopy: rule = deepcopy(rule)
@@ -555,6 +555,8 @@ class DFCol:
       if 'rulename' in validateorfix: rule['rulename'] = rulename
 
       if 'parent_name' in validateorfix: rule['parent_name'] = self.incolid
+      
+      if 'dividchosen' in validateorfix: rule['divIDchosen'] = self.get('divIDchosen')
       
       if 'suggested' in validateorfix:
 	if not rule.get('suggested'): rule['suggested'] = fallback['suggested']
@@ -803,15 +805,20 @@ class DFCol:
 	     ##,'extr':jj[0],'rulename':rule
 	     ##,'ruledesc':self.rules[rule].get('ruledesc','')
 	     ##,'colmeta':''
-	     ##,'args':{'whatcode':ii}})
+	     ##,'args':{'whatcode':ii})
     #return out
     '''
     pass
 	
   '''Generate unique tag if there are args
   '''
-  def prepChosen(self,rule,userArgs=[]):
-    # valfixRule(rule,name)
+  def prepChosen(self,rule,userArgs={},retMatch=None,retChnew='newchosen'):
+    '''
+    retMatch, retChnew: 'newchosen','self', the name of an attribute of self, or None
+			If none of the above, then the value to return
+			retMatch is what returns if rule already exists in self.chosen
+			retChnew is what returns otherwise
+    '''
     if len(userArgs) > 0:
       if type(userArgs) == dict:
 	userArgsClean = [re.sub('[^\w:|]','',str(xx)) for xx in userArgs.values()]
@@ -820,12 +827,14 @@ class DFCol:
       else: raise ValueError('''
 	The 'userArgs' argument must be either a list or a dict for prepChosen''')
     userArgsClean = userArgs
+    
     rule = self.valfixRule(rule,None,['longname','delbid','parent_name'
 				     ,'rulename','ruledesc','selector_stronly'
-				     ,'userinput'],userArgs=userArgsClean)
+				     ,'userinput','dividchosen'],userArgs=userArgsClean)
     # Is the same pair of rulename and userArgs already in chosen?
     match = [kk for kk,vv in self.chosen.items() 
 	     if vv['rulename']==rule['rulename'] and vv['userArgs']==userArgsClean]
+    retFinal = retMatch if match else retChnew
     # suffixes from items other than the match above
     othersuff = [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk not in match]
     mysuffix = rule['rulesuffix']
@@ -836,11 +845,15 @@ class DFCol:
       # rerun valfixRule() just to update the longname, delbid, and their dependencies
       # to reflect the now unique rulesuffix
       rule = self.valfixRule(rule,None,['longname','delbid'])
-      foo = 'rerun'
       #TODO: re-confirm that rulename is still unique, maybe a while loop?
     if not match: match = [rule['longname']]
     self.chosen[match[0]] = rule
     self.chosen[match[0]]['userArgs'] = userArgsClean
+    if retFinal == 'self': return self
+    elif retFinal == 'newchosen': return self.chosen[match[0]]
+    elif retFinal in dir(self): return self[retFinal]
+    else: return retFinal
+  
   
   def updChoices(self,choices):
     '''Get the user choices (extractors, names (?), and args) 
