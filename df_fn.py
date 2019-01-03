@@ -255,14 +255,26 @@ def qb2py(qb
   ,fields=[xx.get('name') for xx in qbfilterlist.values()]
   ,blacklistrxp='[^\w:|_]'
   ):
-  assert qb == list
+  assert qb == dict
+  # Group case
   if len(set(['condition','rules']) & set(qb.keys())) == 2:
+    # detect AND/OR/error
+    # out = '%s([%s])' % (logop,",'.join([qb2py(...) for xx in rules]))
+    # test for compilability (assert?)
+    # return
     pdb.set_trace()
     return 'GROUP'
+  # Rule case
   elif len(set(['field','value','operator']) & set(qb.keys())) == 3:
+    # check for existence of operator else error
+    # check for existence of field else error
+    # sanitize value/s
+    # out = op(fld,val)
+    # test for compilability (assert?)
+    # return
     return 'RULE'
   else:
-    raise ValueError('Invalid input: %s' % str(qb))
+    raise SyntaxError('Invalid input: %s' % str(qb))
   # confirm that the output so far parses
   # return output
   pass
