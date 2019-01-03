@@ -813,10 +813,11 @@ class DFCol:
   ''' Deletes a previously chosen rule in a way that can be exposed to R api 
       If name 'chname' was found and deleted, returns the name back. Otherwise
       returns None'''
-  def unprepChosen(self,chname):
+  def unprepChosen(self,chname,retattr='shortname'):
+    out = self.chosen.get(retattr)
     if chname in self.chosen.keys():
       del self.chosen[chname]
-      return chname
+      return out
     else: return None
 
   def prepChosen(self,rule,userArgs={},retMatch=None,retChnew='newchosen'):
