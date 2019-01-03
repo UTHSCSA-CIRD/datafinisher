@@ -76,6 +76,97 @@ list(
 
 '''
 
+# This is a copy of the filterlist structure used by the Shiny front end, and 
+# might get moved here to help keep the configurations in sync. The goal is 
+# for Shiny's job to be limited to HTML rendering and user-input collecting
+qbfilterlist = {
+  "concept_cd": {
+    "name": "cc",
+    "type": "string",
+    "input": "selectize",
+    "label": "Concept Code (concept_cd)"
+    },
+  "modifier_cd": {
+    "name": "mc",
+    "type": "string",
+    "input": "text",
+    "label": "Modifier Code (modifier_cd)"
+      },
+  "instance_num": {
+    "name": "ix",
+    "type": "integer",
+    "label": "Instance Number (instance_num)"
+      },
+  "valtype_cd": {
+    "name": "vt",
+    "type": "string",
+    "input": "text",
+    "label": "Value Type (valtype_cd)"
+      },
+  "tval_char": {
+    "name": "tc",
+    "type": "string",
+    "input": "text",
+    "label": "Text Val (tval_char)"
+      },
+  "nval_num": {
+    "name": "nv",
+    "type": "double",
+    "label": "Numeric Value (nval_num)"
+      },
+  "valueflag_cd": {
+    "name": "vf",
+    "type": "string",
+    "input": "selectize",
+    "label": "Outside Reference Range (valueflag_cd)",
+    "values": ["H", "A", "@", "L"]
+    },
+  "quantity_num": {
+    "name": "qt",
+    "type": "double",
+    "label": "Quantity (quantity_num)"
+      },
+  "units_cd": {
+    "name": "un",
+    "type": "string",
+    "input": "text",
+    "label": "Unit of Measure (units_cd)"
+      },
+  "location_cd": {
+    "name": "lc",
+    "type": "string",
+    "input": "text",
+    "label": "Location Code (location_cd)"
+      },
+  "confidence_num": {
+    "name": "cf",
+    "type": "double",
+    "label": "Confidence Level (confidence_num)"
+      }
+} 
+
+pyops = {
+  # note-- unlike contains, here val is a list, not a string
+  "in": lambda fld,val: ''' %s in %s ''' % (fld,val) 
+  ,"not_in": lambda fld,val: ''' not %s in '%s' ''' % (fld,val) 
+  ,"equal": lambda fld,val: ' %s == %s ' % (fld,val)
+  ,"not_equal": lambda fld,val: ' %s != %s ' % (fld,val)
+  ,"less": lambda fld,val: ' %s < %s ' % (fld,val)
+  ,"less_or_equal": lambda fld,val: ' %s <= %s ' % (fld,val)
+  ,"greater": lambda fld,val: ' %s > %s ' % (fld,val) 
+  ,"greater_or_equal": lambda fld,val: ' %s >= %s ' % (fld,val)
+  ,"between": lambda fld,val: ' %s <= %s <= %s ' % (val[0],fld,val[1])
+  ,"not_between": lambda fld,val: ' not %s <= %s <= %s ' % (val[0],fld,val[1])
+  ,"is_na": lambda fld,val: ' %s == None ' % fld
+  ,"is_not_na": lambda fld,val: ' %s != None ' % fld
+  ,"begins_with": lambda fld,val: ''' %s.startswith('%s') ''' % (fld,val) 
+  ,"not_begins_with": lambda fld,val: ''' not %s.startswith('%s') ''' % (fld,val) 
+  ,"ends_with": lambda fld,val: ''' %s.endswith('%s') ''' % (fld,val) 
+  ,"not_ends_with": lambda fld,val: ''' not %s.endswith('%s') ''' % (fld,val) 
+  ,"contains": lambda fld,val: ''' %s in '%s' ''' % (fld,val) 
+  ,"not_contains": lambda fld,val: ''' not %s in '%s' ''' % (fld,val) 
+}
+
 i2b2fields = ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf']
 
 # these are evaluated in the scope of each top level item in a cell dict (if any) and return T/F on which to select items
@@ -268,3 +359,6 @@ extractors = {
   #,'first_un':{'field':'un','transform':lambda xx: [kk for kk in xx if kk is not None][0] if any(xx) else None}
   #,'':{'field':'','transform':None}
   ,}
+
+
+# This 
