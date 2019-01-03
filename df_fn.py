@@ -809,9 +809,16 @@ class DFCol:
     #return out
     '''
     pass
-	
-  '''Generate unique tag if there are args
-  '''
+
+  ''' Deletes a previously chosen rule in a way that can be exposed to R api 
+      If name 'chname' was found and deleted, returns the name back. Otherwise
+      returns None'''
+  def unprepChosen(self,chname):
+    if chname in self.chosen.keys():
+      del self.chosen[chname]
+      return chname
+    else: return None
+
   def prepChosen(self,rule,userArgs={},retMatch=None,retChnew='newchosen'):
     '''
     retMatch, retChnew: 'newchosen','self', the name of an attribute of self, or None
