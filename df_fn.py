@@ -16,7 +16,7 @@ dolog = False
 # to look for in the JSON fields and what extractors and names to return for
 # each pattern
 from rules import rules,rules2,autosuggestor,aggregators,fieldlists,selectors
-from rules import rules_fallback,i2b2fields,qbfilterlist
+from rules import rules_fallback,i2b2fields,qbfilterlist,pyops
 
 # useful listsp
 # columns that may affect the interpretation of the data
@@ -250,9 +250,14 @@ def dropletters(intext):
 
 # Get a data structure (qb) returned by js querybuilder and try to turn it into 
 # valid python code
-def qb2py(qb,pyops,fields,blacklistrxp='[^\w:|_]'):
+def qb2py(qb
+  ,pyops=pyops
+  ,fields=[xx.get('name') for xx in qbfilterlist.values()]
+  ,blacklistrxp='[^\w:|_]'
+  ):
   assert qb == list
   if len(set(['condition','rules']) & set(qb.keys())) == 2:
+    pdb.set_trace()
     return 'GROUP'
   elif len(set(['field','value','operator']) & set(qb.keys())) == 3:
     return 'RULE'
