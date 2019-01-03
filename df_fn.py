@@ -15,7 +15,8 @@ dolog = False
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
 # each pattern
-from rules import rules,rules2,autosuggestor, aggregators,fieldlists,selectors,rules_fallback,i2b2fields
+from rules import rules,rules2,autosuggestor,aggregators,fieldlists,selectors
+from rules import rules_fallback,i2b2fields,qbfilterlist
 
 # useful listsp
 # columns that may affect the interpretation of the data
@@ -246,6 +247,21 @@ def dropletters(intext):
 
 ### for json parsing 
 #section json
+
+# Get a data structure (qb) returned by js querybuilder and try to turn it into 
+# valid python code
+def qb2py(qb,pyops,fields,blacklistrxp='[^\w:|_]'):
+  assert qb == list
+  if len(set(['condition','rules']) & set(qb.keys())) == 2:
+    return 'GROUP'
+  elif len(set(['field','value','operator']) & set(qb.keys())) == 3:
+    return 'RULE'
+  else:
+    raise ValueError('Invalid input: %s' % str(qb))
+  # confirm that the output so far parses
+  # return output
+  pass
+
 
 # Take an object and return a sanitized string representation with customizable
 # delimiters
@@ -829,12 +845,12 @@ class DFCol:
     '''
     if len(userArgs) > 0:
       if type(userArgs) == dict:
-	userArgsClean = [re.sub('[^\w:|]','',str(xx)) for xx in userArgs.values()]
+	userArgsClean = [str(xx) for xx in userArgs.values()]
       elif type(userArgs) == list:
-	userArgsClean = [re.sub('[^\w:|]','',str(xx)) for xx in userArgs]
+	userArgsClean = [str(xx) for xx in userArgs]
       else: raise ValueError('''
 	The 'userArgs' argument must be either a list or a dict for prepChosen''')
-    userArgsClean = userArgs
+    userArgsClean = [re.sub('[^\w:|_]','',xx) for xx in userArgs]
     
     rule = self.valfixRule(rule,None,['longname','delbid','parent_name'
 				     ,'rulename','ruledesc','selector_stronly'
