@@ -179,9 +179,10 @@ if __name__ == '__main__':
       dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
       colids=dfc.getColIDs(childids=['selid','addbid','shortname','longname','ruledesc','parent_name']
 		    ,childtype='rules')
-      inp = ['foo','bar','baz','bat','bam']
+      dfc.prepChosen(dfc.rules['true_false'],userArgs={'MM':123})
       dfc.prepChosen(dfc.rules['last_numeric_fltrcode'],userArgs={'aa':'bb','CC': 123})
-      #dfc.prepChosen(dfc.rules['last_numeric_fltrcode'],userArgs={'aa':'bb','CC': 123, 'qq': 42})
+      testOCinput = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+				   ,userArgs={'vv':'bb','CC': 123, 'qq': 42})
       #testOCinput = dfc.prepChosen(dfc.rules['true_false'],userArgs={'aa':'bb','CC': 123, 'qq': 42})
       testOCinput['selector'] = testqb
       testOC = DFOutCol(dfc,testOCinput)
