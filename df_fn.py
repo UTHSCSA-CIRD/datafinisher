@@ -254,30 +254,51 @@ def qb2py(qb
   ,pyops=pyops
   ,fields=[xx.get('name') for xx in qbfilterlist.values()]
   ,blacklistrxp='[^\w:|_]'
+  ,toplevel=True
   ):
-  assert qb == dict
+  assert type(qb) == dict
+  if repr(type(blacklistrxp)) != '''<type '_sre.SRE_Pattern'>''':
+    blacklistrxp = re.compile(blacklistrxp)
   # Group case
   if len(set(['condition','rules']) & set(qb.keys())) == 2:
     # detect AND/OR/error
-    # out = '%s([%s])' % (logop,",'.join([qb2py(...) for xx in rules]))
-    # test for compilability (assert?)
-    # return
-    pdb.set_trace()
-    return 'GROUP'
+    if qb['condition'] == 'AND': lop = ' all([%s]) '
+    elif qb['condition'] == 'OR': lop = ' any([%s]) '
+    else: raise SyntaxError('''
+      The condition provided is: 
+      %s 
+      but the only valid values are 'AND' or 'OR' ''' % qb['condition'])
+    
+    # get the rules sub-object
+    myrules = qb['rules']
+    # make sure it's a list
+    assert type(myrules) == list and len(myrules) > 0
+    # prepare expression
+    out = lop % ','.join([qb2py(xx,pyops,fields,blacklistrxp,toplevel=False) 
+			  for xx in qb['rules']])
+    # make sure it compiles
   # Rule case
   elif len(set(['field','value','operator']) & set(qb.keys())) == 3:
-    # check for existence of operator else error
     # check for existence of field else error
+    assert qb['field'] in fields
+    # check for existence of operator else error
+    assert qb['operator'] in pyops.keys()
     # sanitize value/s
-    # out = op(fld,val)
-    # test for compilability (assert?)
-    # return
-    return 'RULE'
+    myval = str()
+    if type(qb['value']) == str: myval = blacklistrxp.sub('',qb['value'])
+    else: myval = [blacklistrxp.sub('',xx) for xx in qb['value']]
+    # prepare expression
+    out = pyops[qb['operator']](qb['field'],myval)
   else:
     raise SyntaxError('Invalid input: %s' % str(qb))
   # confirm that the output so far parses
   # return output
-  pass
+  try: compile(out[1:],'<string>','eval')
+  except: 
+    import pdb;pdb.set_trace()
+    raise SyntaxError('''%s is not a valid Python expression''' % out)
+  if toplevel: out = out[1:]
+  return out
 
 
 # Take an object and return a sanitized string representation with customizable
@@ -307,7 +328,7 @@ def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999):
   #else: matched = strname
   return newname
 
-
+def n2str(xx): return '' if not xx else xx
 
 class DFMeta: 
   '''Initialize with a list of column names and metadata 
@@ -497,7 +518,7 @@ class DFCol:
     '''
     self.last_pid = None
     # The set of derived columns chosen by the user and by suggestions
-    self.chosen = {}; self.suggested = []
+    self.chosen = {}; self.suggested = []; self.outcols = [];
     """This is the info column, which should be a replica of the column in 
     the input CSV file that produced this column"""
     self.dfcol = [{'cname':colname,'args':{}}]
@@ -558,7 +579,10 @@ class DFCol:
     ,fallback=rules_fallback,selectors=selectors,fieldlists=fieldlists
     ,aggregators=aggregators,fieldsep='/',i2b2fields=i2b2fields,userArgs={}
   ):
-    check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
+    try:
+      check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
+    except:
+      import pdb; pdb.set_trace()
     if(check):
       if usedeepcopy: rule = deepcopy(rule)
       
@@ -580,6 +604,9 @@ class DFCol:
       
       if set(['addbid','selid','delbid']) & set(validateorfix):
 	if not 'shortname' in validateorfix: validateorfix += ['shortname']
+      
+      # we let selector_stronly make sure the code is exectuable
+      if 'selector' in validateorfix: validateorfix += ['selector_stronly']
       
       #end_section
       
@@ -654,8 +681,14 @@ class DFCol:
       # if it already exists unless selector_stronly is set
       if set(['selector_stronly','selector_checkonly']) & set(validateorfix):
 	myselector = rule.get('selector')
+
 	if not myselector: rule['selector'] = fallback['selector_stronly']
-	elif type(myselector) != str: 
+
+	if type(myselector) == dict and \
+	  len(set(['condition','rules']) & set(myselector.keys())) == 2:
+	  myselector = qb2py(myselector)
+
+	if type(myselector) != str: 
 	  if 'selector_stronly' in validateorfix: raise ValueError('''
 	    In rule %s the 'selector' argument may only be a string. Currently it is a %s :
 	    %s
@@ -664,16 +697,19 @@ class DFCol:
 	    In rule %s the 'selector' argument needs to be valid python code. Currently it is:
 	    %s
 	    ''' % (rulename,myselector))
-	else:
+	  else: rule['selector'] = myselector
+	elif myselector not in selectors:
 	  try: compile(myselector,'<string>','eval')
 	  except: raise SyntaxError('''
 		  Rule %s has a selector argument that is not valid python code: 
 		  %s
 		  ''' % (rulename,myselector))
+	  rule['selector'] = myselector
+	  
 	
-      if 'aggregagor_stronly' in validateorfix:
+      if 'aggregator_stronly' in validateorfix:
 	myaggregator = rule.get('aggregator')
-	if not myaggregator: rule['aggregator'] = fallback['aggregagor_stronly']
+	if not myaggregator: rule['aggregator'] = fallback['aggregator_stronly']
 	elif type(myaggregator) != str: raise ValueError('''
 	  Rule %s 'aggregator' argument must be a string
 	  ''' % rulename)
@@ -689,24 +725,26 @@ class DFCol:
       # TODO: don't create lambdas here, only code for the outCol.__init__ to compile into callables
       if 'selector' in validateorfix:
 	myselector = rule.get('selector')
-	if not myselector: rule['selector'] = fallback['selector']
-	else:
-	  if not callable(myselector):
-	    if type(myselector) == str:
-	      if myselector in selectors:
-		rule['selector'] = selectors[myselector]
-	      else: 
-		try: compile(myselector,'<string>','eval')
-		except: raise SyntaxError('''
-		  Rule %s has a selector argument that is not valid python code: 
-		  %s
-		  ''' % (rulename,myselector))
-		# TODO: just compile it and let the outCol.__init__() call it
-		rule['selector'] = eval('''lambda cc=None,mc=None,ix=None,vt=None
-					,tc=None,nv=None,vf=None
-					,qt=None,un=None,lc=None,cf=None
-					,**kwargs:'''+rule['selector'])
-	    else: raise ValueError('In rule %s the selector needs to be an str or a callable object' % rulename)
+	# The below is already  checked by selector_stronly
+	#if not myselector: rule['selector'] = fallback['selector']
+	#else:
+	if not callable(myselector):
+	  if type(myselector) == str:
+	    if myselector in selectors:
+	      rule['selector'] = selectors[myselector]
+	    else: 
+	      #try: compile(myselector,'<string>','eval')
+	      #except: raise SyntaxError('''
+		#Rule %s has a selector argument that is not valid python code: 
+		#%s
+		#''' % (rulename,myselector))
+	      # TODO: just compile it and let the outCol.__init__() call it
+	      rule['selector'] = eval('lambda cc=None,mc=None,ix=None,vt=None'+
+			       ',tc=None,nv=None,vf=None,qt=None,un=None'+
+			       ',lc=None,cf=None,**kwargs:'+myselector)
+	  else: raise ValueError('''
+	    In rule %s the selector needs to be an str or a callable object
+	    ''' % rulename)
       
       if 'fieldlist' in validateorfix:
 	myfieldlist = rule.get('fieldlist')
@@ -808,13 +846,15 @@ class DFCol:
     self.suggested = []
     # noutputs is needed by some rules which reference it
     noutputs = 0
+    for ii in self.rules:
+      if not ii in suggestions: self.rules[ii]['suggested'] = False
+
     for ii in suggestions:
       if ii.keys()[0] in self.rules:
 	check = eval(ii.values()[0],locals(),self.colmeta)
 	self.rules[ii.keys()[0]]['suggested'] = check
-	#if check:
-	  #self.suggested+=self.runRule(ii.keys()[0])
 	noutputs += check
+
     return self
   
   def runRule(self,rule):
@@ -895,6 +935,17 @@ class DFCol:
     elif retFinal in dir(self): return self[retFinal]
     else: return retFinal
   
+  def finalizeChosen(self,chsnames=[],chsrules={}):
+    assert type(chsnames) == list
+    assert type(chsrules) == dict
+    if not chsrules: 
+      if self.chosen: chsrules = self.chosen
+      else: 
+	chsrules = {kk:vv for kk,vv in self.rules.items() if vv['suggested']}
+    if not chsnames: chsnames = chsrules.keys()
+    
+    self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
+      + [DFOutColAsIs(self)]
   
   def updChoices(self,choices):
     '''Get the user choices (extractors, names (?), and args) 
@@ -903,11 +954,11 @@ class DFCol:
   
   # return a flat list for each child object of the type specified and rules are specified
   # currently only 'chosen' and 'rules' values are supported/tested as values for childtype
-  def getColIDs(self,ids=['incolid','divIDavailable','divIDchosen','incoldesc'
-			  ,'short_incolid','as_is_col']
-		,childids=[],childtype=None,asdicts=False):
-    
-    # make sure they're lists
+  def getColIDs(self
+    ,ids=['incolid','divIDavailable','divIDchosen','incoldesc','short_incolid','as_is_col']
+  ,childids=[],childtype=None,asdicts=False
+  ):
+    ''' make sure they're lists'''
     if type(ids) == str: ids = [ids]
     if type(childids) == str: childids = [childids]
     
@@ -935,9 +986,16 @@ class DFCol:
   def getDict(self):
     return vars(self)
   
-  def getHeader(self
+  def getHeader(self):
+    return [xx.getHeader() for xx in self.outcols]
+  
+  def getMeta(self):
+    return [xx.getMeta() for xx in self.outcols]
+  
+  def getFields(self
     ,fields=['cname','rulename','ruledesc','extr','colmeta','args']
-    ,form='dicts',suggestPolicy='auto'):
+    ,form='dicts',suggestPolicy='auto'
+  ):
     '''Return the fields specified by the 'fields' argument
     
     form:      if 'lists' returns each requested field as a list
@@ -964,16 +1022,66 @@ class DFCol:
     else:
       return None
 
-
-  def processCell(self,celldata,pid=None,suggestPolicy='auto'):
-    '''Iterates over each of {self.dfcol,self.chosen} (and, depending on
-    suggestPolicy, self.suggested) and uses the 'extr' and 'args' values
+  def processCell(self,rawcellval,pid=None):
+    '''Iterates over each of {self.dfcol,self.outcols} and uses values
     they contain to create and return a list of output of the same length
     '''
-    pass
+    # If empty, return empty strings, don't bother evaluating the rest
+    if len(re.sub(r'\s+','',rawcellval))==0:
+      return [''] * len(self.outcols)
+    else:
+      try: cellval = json.loads(rawcellval)
+      except Exception, ee:
+	return [str(ee)] * (len(self.outcols)-1) + [rawcellval]
+      return [xx.processCell(cellval,rawcellval) for xx in self.outcols]
     
-# Q: how to make this specify multiple output columns?
-# A?: have a rule with multiple items for an extractor?
+# TODO: DFOutColSkip
+class DFOutColAsIs:
+  def __init__(self,parent,rule={},fldsep='/'):
+    self.outcolid = parent.incolid
+    self.fldsep=fldsep
+    self.outcolmeta = json.dumps({kk:vv for kk,vv in parent.colmeta.items()\
+      if kk != '__builtins__'})
+    
+  def getHeader(self): return(self.outcolid)
+  def getMeta(self): return(self.outcolmeta)
+
+  def processCell(self,cellval,rawcellval,**kwargs):
+    return rawcellval
+
+class DFOutCol:
+  def __init__(self,parent,rule,fldsep='/'):
+    myrule = parent.valfixRule(rule=rule,rulename=None \
+      ,validateorfix=['longname','selector','fieldlist','aggregator'])
+    self.fieldlist = myrule['fieldlist']
+    self.aggregator = myrule['aggregator']
+    self.selector = myrule['selector']
+    self.outcolid = myrule['longname']
+    self.fldsep=fldsep
+    self.outcolmeta = ''
+    
+  def getHeader(self): return(self.outcolid)
+  def getMeta(self): return(self.outcolmeta)
+
+  def processCell(self,cellval,rawcellval,**kwargs):
+    # passthrough for empty values
+    #if len(re.sub(r'\s+', '',cellval))==0: return ''
+    if len(cellval)==0: return ''
+    # convert strings to dicts if needed
+    if type(cellval) == str:
+      try: cellval = json.loads(cellval)
+      except Exception, ee:
+	return str(ee)
+    # use the aggregator function specified by the rule governing this outcol
+    # after joining the fields of the individual entries with the delim string
+    return self.aggregator([self.delim.join([cellval[str(ii)][jj]\
+      # ...those fields being in the fieldlist specified by the rule governing 
+      # this outcol
+      for jj in self.fieldlist])\
+	# ...and the records for which these fields are extracted are selected
+	# by the selector function specified by the rule governing this outcol
+	for ii in range(cellval['count'])\
+	  if self.selector(**cellval[str(ii)])])
 
 def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
   """
