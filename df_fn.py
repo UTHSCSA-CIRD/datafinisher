@@ -3,6 +3,7 @@ import json, sys
 from os.path import dirname
 from copy import deepcopy
 from base64 import urlsafe_b64encode
+from hashlib import sha1
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
 # okay, below looks screwed up because it seems like a circular reference
@@ -300,6 +301,12 @@ def qb2py(qb
   if toplevel: out = out[1:]
   return out
 
+# Sort the first-level lists in a dict object, then take a hash of the
+# sorted json.dumps
+def hshDctSorted(obj,maxlen=8):
+  assert type(obj) == dict
+  out = {kk:sorted(vv) if type(vv) == list else vv for kk,vv in obj.items()}
+  return sha1(json.dumps(out,sort_keys=True)).hexdigest()[:maxlen]
 
 # Take an object and return a sanitized string representation with customizable
 # delimiters
@@ -569,7 +576,7 @@ class DFCol:
   # usage:
   # updRules... valfixRule(rule,rulename,['longname','addbid','selid','split_by_code','parent_name','rulename'
   #					  ,'ruledesc','rulesuffix','selector_stronly'])
-  # prepChosen... valfixRule(rule,rulename,['longname','delbid','split_by_code','parent_name','rulename'
+  # prepChosen... valfixRule(rule,rulename,['longname','delbid','split_by_code','parent_name','rulename','userinput'
   #					  ,'ruledesc','rulesuffix','selector_stronly','dividchosen'])
   # addchosen... valfixRule(rule,rulename,['longname','selector','fieldlist','aggregator'])
   '''
@@ -578,7 +585,10 @@ class DFCol:
     self,rule,rulename=None,validateorfix=[],usedeepcopy=True, skipcheck=False
     ,fallback=rules_fallback,selectors=selectors,fieldlists=fieldlists
     ,aggregators=aggregators,fieldsep='/',i2b2fields=i2b2fields,userArgs={}
+    ,argsrxp=re.compile('[^\w:|_]')
   ):
+    assert rule != None
+    assert type(rule) == dict
     try:
       check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
     except:
@@ -606,7 +616,9 @@ class DFCol:
 	if not 'shortname' in validateorfix: validateorfix += ['shortname']
       
       # we let selector_stronly make sure the code is exectuable
-      if 'selector' in validateorfix: validateorfix += ['selector_stronly']
+      if 'selector' in validateorfix:
+	if not 'selector_stronly' in validateorfix: 
+	  validateorfix += ['selector_stronly']
       
       #end_section
       
@@ -625,9 +637,38 @@ class DFCol:
 	if not rule.get('ruledesc'): 
 	  raise ValueError('Rule %s must have a brief description (in its ruledesc field)' % rulename)
 
+      # this just insures there is a split_by_code, with a value of False
+      # if not specified otherwise
       if 'split_by_code' in validateorfix:
-	if not rule.get('split_by_code'): 
-	  rule['split_by_code'] = len(rule.get('args',()))>0
+	if 'split_by_code' not in rule: 
+	  rule['split_by_code'] = rules_fallback['split_by_code']
+	  # = len(rule.get('args',()))>0
+	  
+      # if userArgs supplied and required by rule, extend the rulesuffix to 
+      # distinguish from instances of that rule with different userArgs
+      if 'userinput' in validateorfix and rule.get('split_by_code'):
+	assert type(userArgs) == dict
+	if not userArgs: raise ValueError('''
+	  Rule %s requires non-empty user input''' % rulename)
+	else:
+	  userArgsClean = {}
+	  for kk,vv in userArgs.items():
+	    # insure unique and standardized arg names
+	    # TODO: crosscheck against what rule specifies
+	    kkclean = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
+	      ,userArgsClean.keys(),sep='',pad=1,maxlen=2)
+	    if type(vv) == list:
+	      vvclean = [argsrxp.sub('',str(xx)) for xx in vv]
+	    elif type(vv) in [str,int,float,unicode]:
+	      vvclean = argsrxp.sub('',str(vv))
+	    else: raise ValueError('''
+	      The userArgs argument must be a dict that contains only objects
+	      of type list,str,int,float, or unicode. You provided %s which is
+	      %s
+	      ''' % (vv,type(vv)))
+	    userArgsClean.update({kkclean:vvclean})
+	  rule['userArgs'] = userArgsClean
+	  rule['argsuffix'] = hshDctSorted(userArgsClean,4)
 
       # the long/shortname fields depend on rulesuffix and should trigger its rebuild also
       if 'rulesuffix' in validateorfix:
@@ -636,7 +677,7 @@ class DFCol:
 	# if there are user arguments, base the suffix on those
 	myrulesuffix = rule.get('rulesuffix')
 	usedsuffixes = [vv['rulesuffix'] for kk,vv in self.rules.items() if kk!=rulename]
-	usedsuffixes += [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk!=rulename]
+	#usedsuffixes += [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk!=rulename]
 	rule['rulesuffix'] = makeTailUnq(myrulesuffix,ref=set(usedsuffixes)
 				  ,sep='',maxlen=8)
 	if(rule['rulesuffix']!=myrulesuffix): print('''
@@ -648,14 +689,6 @@ class DFCol:
 	    #rule['rulesuffix'] = rulename[:8]
 	  #else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
 	  
-      # if userArgs supplied and required by rule, extend the rulesuffix to 
-      # distinguish from instances of that rule with different userArgs
-      if 'userinput' in validateorfix and rule.get('split_by_code'):
-	if len(userArgs)==0: raise ValueError('''
-	  Rule %s requires non-empty user input''' % rulename)
-	else:
-	  rule['rulesuffix'] = rule['rulesuffix']+ob2tag(userArgs)
-
       #end_section
 	  
       #section # always overwrite when applicable even if exists
@@ -663,13 +696,15 @@ class DFCol:
       if 'longname' in validateorfix:
 	#mylongname = rule.get('longname')
 	#if not mylongname or mylongname in [vv['longname'] for vv in self.rules.values()]: 
-	rule['longname'] = self.incolid + '_' + rule['rulesuffix']
+	rule['longname'] = self.incolid + '_' + rule['rulesuffix']\
+	  + n2str(rule.get('argsuffix'))
 	
       # since our *id fields depend on shortname, those should trigger its rebuild also
       if 'shortname' in validateorfix:
 	#myshortname = rule.get('shortname')
 	#if not myshortname or myshortname in [vv['shortname'] for vv in self.rules.values()]: 
-	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']
+	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']\
+	  + n2str(rule.get('argsuffix'))
 	  
       # for addRule
       if 'addbid' in validateorfix: rule['addbid'] = 'ab-'+rule['shortname']
@@ -861,32 +896,6 @@ class DFCol:
 
     return self
   
-  def runRule(self,rule):
-    '''
-    #rule: the NAME of a rule in self.rules
-    
-    #return 'cname','extr','colmeta' (None),'args' {}
-    #if split_by_code, repeat this for every code in self.colmeta.ccd_list
-    #
-    #assert rule in self.rules, "Not the name of a valid rule"
-    #out = []
-    #if self.rules[rule]['split_by_code']:
-      #whatcode = self.unique_codes.split(',')
-    #else: whatcode = ['']
-    ##for ii in whatcode:
-      ##for jj in self.rules[rule]['extractors']:
-	##coltmpl = jj[1]
-	##if ii != '': 
-	  ##coltmpl = ii+'_'+coltmpl
-	##out.append({'cname':coltmpl.format(self.name)
-	     ##,'extr':jj[0],'rulename':rule
-	     ##,'ruledesc':self.rules[rule].get('ruledesc','')
-	     ##,'colmeta':''
-	     ##,'args':{'whatcode':ii})
-    #return out
-    '''
-    pass
-
   ''' Deletes a previously chosen rule in a way that can be exposed to R api 
       If name 'chname' was found and deleted, returns the name back. Otherwise
       returns None'''
@@ -910,12 +919,12 @@ class DFCol:
 	 # of course
 	 # Use assert to enforce userArgs being a dict
     assert type(userArgs) == dict
-    userArgsClean = {}
-    for kk,vv in userArgs.items():
-      kkout = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
-		    ,userArgsClean.keys(),sep='',pad=1,maxlen=2)
-      try: userArgsClean.update({kkout:re.sub('[^\w:|_]','',str(vv))})
-      except: import pdb; pdb.set_trace()
+    #userArgsClean = {}
+    #for kk,vv in userArgs.items():
+      #kkout = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
+		    #,userArgsClean.keys(),sep='',pad=1,maxlen=2)
+      #try: userArgsClean.update({kkout:re.sub('[^\w:|_]','',str(vv))})
+      #except: import pdb; pdb.set_trace()
       
       #if type(userArgs) == dict:
 	#userArgsClean = [str(xx) for xx in userArgs.values()]
@@ -927,27 +936,31 @@ class DFCol:
     
     rule = self.valfixRule(rule,None,['longname','delbid','parent_name'
 				     ,'rulename','ruledesc','selector_stronly'
-				     ,'userinput','dividchosen'],userArgs=userArgsClean)
-    # Is the same pair of rulename and userArgs already in chosen?
+				     ,'userinput','dividchosen'],userArgs=userArgs)
+    # Assumption: an outcol is fully defined by its rulename and userArgs
+    
     match = [kk for kk,vv in self.chosen.items() 
-	     if vv['rulename']==rule['rulename'] and vv['userArgs']==userArgsClean]
+	     if vv['rulename']==rule['rulename']\
+	       and vv['rulesuffix']==rule['rulesuffix']\
+		 and vv.get('argsuffix')==rule.get('argsuffix')]
     retFinal = retMatch if match else retChnew
     # suffixes from items other than the match above
-    othersuff = [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk not in match]
-    mysuffix = rule['rulesuffix']
-    # Are there any suffix collisions?
-    if mysuffix in othersuff:
-      # If so, resolve them via makeTailUnq()
-      rule['rulesuffix'] = makeTailUnq(mysuffix,ref=othersuff,sep='',maxlen=8)
-      # rerun valfixRule() just to update the longname, delbid, and their dependencies
-      # to reflect the now unique rulesuffix
-      rule = self.valfixRule(rule,None,['longname','delbid'])
-      #TODO: re-confirm that rulename is still unique, maybe a while loop?
+    #othersuff = [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk not in match]
+    #mysuffix = rule['rulesuffix']
+    ## Are there any suffix collisions?
+    #if mysuffix in othersuff:
+      ## If so, resolve them via makeTailUnq()
+      #rule['rulesuffix'] = makeTailUnq(mysuffix,ref=othersuff,sep='',maxlen=8)
+      ## rerun valfixRule() just to update the longname, delbid, and their dependencies
+      ## to reflect the now unique rulesuffix
+      #rule = self.valfixRule(rule,None,['longname','delbid'])
+      ##TODO: re-confirm that rulename is still unique, maybe a while loop?
     if not match: match = [rule['longname']]
     self.chosen[match[0]] = rule
-    self.chosen[match[0]]['userArgs'] = userArgsClean
+    #self.chosen[match[0]]['userArgs'] = userArgsClean
+    #assert len(match) in (0,1)
     if retFinal == 'self': return self
-    elif retFinal == 'newchosen': return self.chosen[match[0]]
+    elif retFinal == 'newchosen': return self.chosen[match[0]] if match else None
     elif retFinal in dir(self): return self[retFinal]
     else: return retFinal
   
@@ -1091,14 +1104,20 @@ class DFOutCol:
 	return str(ee)
     # use the aggregator function specified by the rule governing this outcol
     # after joining the fields of the individual entries with the delim string
-    return self.aggregator([self.delim.join([cellval[str(ii)][jj]\
-      # ...those fields being in the fieldlist specified by the rule governing 
-      # this outcol
-      for jj in self.fieldlist])\
-	# ...and the records for which these fields are extracted are selected
-	# by the selector function specified by the rule governing this outcol
-	for ii in range(cellval['count'])\
-	  if self.selector(**cellval[str(ii)])])
+    out = []
+    for ii in range(cellval['count']):
+      if self.selector(**cellval[str(ii)]):
+	out += [self.fldsep.join([str(n2str(cellval[str(ii)].get(kk)))\
+	  for kk in self.fieldlist])]
+    return self.aggregator(out)
+    #return self.aggregator([self.fldsep.join([cellval[str(ii)][jj]\
+      ## ...those fields being in the fieldlist specified by the rule governing 
+      ## this outcol
+      #for jj in self.fieldlist])\
+	## ...and the records for which these fields are extracted are selected
+	## by the selector function specified by the rule governing this outcol
+	#for ii in range(cellval['count'])\
+	  #if self.selector(**cellval[str(ii)])])
 
 def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
   """
