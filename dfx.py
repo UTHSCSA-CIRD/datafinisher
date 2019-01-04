@@ -208,5 +208,6 @@ if __name__ == '__main__':
       #testsugg = [xx for xx in dfc.rules.values() if xx.get('suggested')]
       #testfvr = dfc.valfixRule(testsugg[0],None,['longname','selector','fieldlist','aggregator'])
       dfc.finalizeChosen()
+      dfm['age_at_visit_days'].finalizeChosen()
       import pdb; pdb.set_trace()
     #update_df(args.csvin)

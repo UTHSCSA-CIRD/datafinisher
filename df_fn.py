@@ -350,7 +350,8 @@ class DFMeta:
   Future plans: allow the first argument to be a file-handle
   '''
   def __init__(self,inhead,inmeta=None,suggestPolicy='auto'
-	       ,rules=deepcopy(rules2),suggestions=None):
+	       ,rules=deepcopy(rules2),suggestions=None
+  ):
     if inmeta == None:
       inmeta = ['---']*len(inhead)
     assert len(inhead) == len(inmeta), '''
@@ -442,7 +443,24 @@ class DFMeta:
       out+=self[ii].getColIDs(**kwargs)
     return out
 
-  def getHeaders(self,bycol=False,cols=None,*args,**kwargs):
+  def finalizeChosen(self,chsnames={},chsrules={}):
+    assert type(chsnames) == dict
+    # Assumption that some/none/all of the columns 
+    # Have lists in the chsnames dict, and those lists
+    # consist of valid items in the chosen dicts of those
+    # respective DFCol objects, that will be converted to lists
+    # of DFOutCol objects in those DFCol s
+    for ii in self.inhead:
+      iinames = []
+      iinput = chsnames.get(ii,[])
+      if type(iinput) != list:
+	assert type(iinput) in (str,unicode)
+	iinput = [iinput]
+      iinames += iinput
+      # not messing with chsrules yet
+      self[ii].finalizeChosen(iinames)
+    
+  def getHeaders(self,bycol=False,cols=None,func='getHeader',*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
     and in addition whatever the current value of suggestPolicy is
     
@@ -456,27 +474,40 @@ class DFMeta:
     # Without any args/kwargs, this produces the output that may end up 
     # being the user intput message format
     if bycol:
-      return {ii: self.incols[ii].getHeader(suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols}
+      return {ii: self.incols[ii][func]() for ii in cols}
+    else:
+      out = []
+      for ii in cols: out.extend(self.incols[ii][func]())
+      return out
+  
+  def getMetas(self,bycol=False,cols=None,func='getMeta',*args,**kwargs):
+    return self.getHeaders(bycol=bycol,cols=cols,func=func,*args,**kwargs)
+    
+    # The stuff below no longer needed, the DFCol and DFOutCol getHeader
+    # now only return str lists
+    
+	      #suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols}
     # return as unified list or dict
-    out = [self.incols[ii].getHeader(suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols]
-    # if out consists of lists... (as detected from its first element)
-    if type(out[0]) == type([]):
-      # flatten them, returning a list of dictionaries each specifying one 
-      # output column
-      return [ii for jj in out for ii in jj]
-    # if out consists of dicts... (as detected from its first element)
-    elif type(out[0]) == type({}):
-      # iterate over the contributions of all the incols except the first
-      for ii in range(1,len(out)):
-	# and extend the lists from all of them to the corresponding lists
-	# in the first in the order they appear (in the cols argument if 
-	# provided)
-	for jj in out[0].keys():
-	  out[0][jj] += out[ii][jj]
-      # and return a dictionary of lists, each list representing that 
-      # attribute from all the columns, all of them having the same length
-      # as the number of output columns, and in the same order
-      return out[0]
+    #out = [self.incols[ii].getHeader() for ii in cols]
+    ##suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols]
+    ## if out consists of lists... (as detected from its first element)
+    #if type(out[0]) == type([]):
+      ## flatten them, returning a list of dictionaries each specifying one 
+      ## output column
+      #return [ii for jj in out for ii in jj]
+    ## if out consists of dicts... (as detected from its first element)
+    #elif type(out[0]) == type({}):
+      ## iterate over the contributions of all the incols except the first
+      #for ii in range(1,len(out)):
+	## and extend the lists from all of them to the corresponding lists
+	## in the first in the order they appear (in the cols argument if 
+	## provided)
+	#for jj in out[0].keys():
+	  #out[0][jj] += out[ii][jj]
+      ## and return a dictionary of lists, each list representing that 
+      ## attribute from all the columns, all of them having the same length
+      ## as the number of output columns, and in the same order
+      #return out[0]
   
   def processRow(self,cells,pidname='PATIENT_NUM'):
     '''For each of the incols, do foo.processCell() passing each one its cell
@@ -844,31 +875,6 @@ class DFCol:
     return self
 
   
-  def updRules_old(self,rules=deepcopy(rules2),suggestions=None):
-    '''Replace the current rules with subset of new ones that are valid 
-    for this columnn based on their built-in validity checks and colmeta
-    
-    If 'suggestions' argument provided, also updates suggestions
-    '''
-    
-    # for static columns
-    if self.as_is_col: 
-      self.rules = {}
-      return self
-  
-    rules0 = deepcopy({kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)})
-    for ii in rules0: 
-      rules0[ii]['suggested'] = False
-      rules0[ii]['rulename'] = ii
-      rules0[ii]['parent_name'] = self.incolid
-      rules0[ii]['shortname'] = self.short_incolid+'_'+rules0[ii]['rulesuffix']
-      rules0[ii]['longname'] = self.incolid+'_'+rules0[ii]['rulesuffix']
-      rules0[ii]['addbid'] = 'ab-'+rules0[ii]['shortname']
-      rules0[ii]['selid'] = 'sl-'+rules0[ii]['shortname']
-    self.rules = rules0
-    if suggestions != None: self.updSuggestions(suggestions)
-    return self
-    # initialize the 'suggested' attribute to 'False'
     
   def updSuggestions(self,suggestions):
     '''Update the 'suggested' attribute for each rule based on suggestions
@@ -964,17 +970,22 @@ class DFCol:
     elif retFinal in dir(self): return self[retFinal]
     else: return retFinal
   
+  # builds or rebuilds the outcols
   def finalizeChosen(self,chsnames=[],chsrules={}):
+    if type(chsnames) != list or type(chsrules) != dict:
+      import pdb; pdb.set_trace()
     assert type(chsnames) == list
     assert type(chsrules) == dict
-    if not chsrules: 
-      if self.chosen: chsrules = self.chosen
-      else: 
-	chsrules = {kk:vv for kk,vv in self.rules.items() if vv['suggested']}
-    if not chsnames: chsnames = chsrules.keys()
-    
-    self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
-      + [DFOutColAsIs(self)]
+    if self.as_is_col: self.outcols = [DFOutColAsIs(self)]
+    else:
+      if not chsrules: 
+	if self.chosen: chsrules = self.chosen
+	else: 
+	  chsrules = {kk:vv for kk,vv in self.rules.items() if vv['suggested']}
+      if not chsnames: chsnames = chsrules.keys()
+      
+      self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
+	+ [DFOutColAsIs(self)]
   
   def updChoices(self,choices):
     '''Get the user choices (extractors, names (?), and args) 
@@ -1015,10 +1026,12 @@ class DFCol:
   def getDict(self):
     return vars(self)
   
-  def getHeader(self):
+  def getHeader(self,*args,**kwargs):
+    if not self.outcols: self.finalizeChosen()
     return [xx.getHeader() for xx in self.outcols]
   
-  def getMeta(self):
+  def getMeta(self,*args,**kwargs):
+    if not self.outcols: self.finalizeChosen()
     return [xx.getMeta() for xx in self.outcols]
   
   def getFields(self
@@ -1055,6 +1068,7 @@ class DFCol:
     '''Iterates over each of {self.dfcol,self.outcols} and uses values
     they contain to create and return a list of output of the same length
     '''
+    if not self.outcols: self.finalizeChosen()
     # If empty, return empty strings, don't bother evaluating the rest
     if len(re.sub(r'\s+','',rawcellval))==0:
       return [''] * len(self.outcols)
@@ -1069,7 +1083,10 @@ class DFOutColAsIs:
   def __init__(self,parent,rule={},fldsep='/'):
     self.outcolid = parent.incolid
     self.fldsep=fldsep
-    self.outcolmeta = json.dumps({kk:vv for kk,vv in parent.colmeta.items()\
+    if type(parent.colmeta) == str:
+      self.outcolmeta = parent.colmeta
+    else:
+      self.outcolmeta = json.dumps({kk:vv for kk,vv in parent.colmeta.items()\
       if kk != '__builtins__'})
     
   def getHeader(self): return(self.outcolid)
@@ -1243,7 +1260,8 @@ def xmetaj(data,header,rules=rules,chosen=0):
   # return that rule's extractors, construct header, and nulls/data as meta
 
 def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, as_is=False
-	    , nulls_r_false=False, *args, **kwargs):
+	    , nulls_r_false=False, *args, **kwargs
+):
   """
   The data argument should be a string in JSON format that contains one or
   more JSON objects. The fields should be a named field in those objects.
@@ -1453,3 +1471,32 @@ def create_ruledef(cnx, filename):
 	cnx.commit()
 	
 # read a config file subsection as specified by a delimited string
+
+#section #deadcode
+  #def updRules_old(self,rules=deepcopy(rules2),suggestions=None):
+    #'''Replace the current rules with subset of new ones that are valid 
+    #for this columnn based on their built-in validity checks and colmeta
+    
+    #If 'suggestions' argument provided, also updates suggestions
+    #'''
+    
+    ## for static columns
+    #if self.as_is_col: 
+      #self.rules = {}
+      #return self
+  
+    #rules0 = deepcopy({kk: vv for kk,vv in rules.items() if eval(vv.get('criteria'),self.colmeta)})
+    #for ii in rules0: 
+      #rules0[ii]['suggested'] = False
+      #rules0[ii]['rulename'] = ii
+      #rules0[ii]['parent_name'] = self.incolid
+      #rules0[ii]['shortname'] = self.short_incolid+'_'+rules0[ii]['rulesuffix']
+      #rules0[ii]['longname'] = self.incolid+'_'+rules0[ii]['rulesuffix']
+      #rules0[ii]['addbid'] = 'ab-'+rules0[ii]['shortname']
+      #rules0[ii]['selid'] = 'sl-'+rules0[ii]['shortname']
+    #self.rules = rules0
+    #if suggestions != None: self.updSuggestions(suggestions)
+    #return self
+    # initialize the 'suggested' attribute to 'False'
+
+#end_section #deadcode
