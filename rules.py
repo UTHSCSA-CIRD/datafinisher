@@ -145,33 +145,35 @@ qbfilterlist = {
       }
 } 
 
+def n2str(xx): '' if not xx else xx
+
 pyops = {
   # note-- unlike contains, here val is a list, not a string
-  "in": lambda fld,val: ''' %s in %s ''' % (fld,val) 
-  ,"not_in": lambda fld,val: ''' not %s in '%s' ''' % (fld,val) 
+  "in": lambda fld,val: ''' %s in %s ''' % (fld,repr(val))
+  ,"not_in": lambda fld,val: ''' not %s in %s ''' % (fld,repr(val)) 
   ,"equal": lambda fld,val: ' %s == %s ' % (fld,val)
   ,"not_equal": lambda fld,val: ' %s != %s ' % (fld,val)
   ,"less": lambda fld,val: ' %s < %s ' % (fld,val)
   ,"less_or_equal": lambda fld,val: ' %s <= %s ' % (fld,val)
-  ,"greater": lambda fld,val: ' %s > %s ' % (fld,val) 
+  ,"greater": lambda fld,val: ' %s > %s ' % (fld,val)
   ,"greater_or_equal": lambda fld,val: ' %s >= %s ' % (fld,val)
   ,"between": lambda fld,val: ' %s <= %s <= %s ' % (val[0],fld,val[1])
   ,"not_between": lambda fld,val: ' not %s <= %s <= %s ' % (val[0],fld,val[1])
-  ,"is_na": lambda fld,val: ' %s == None ' % fld
-  ,"is_not_na": lambda fld,val: ' %s != None ' % fld
-  ,"begins_with": lambda fld,val: ''' %s.startswith('%s') ''' % (fld,val) 
-  ,"not_begins_with": lambda fld,val: ''' not %s.startswith('%s') ''' % (fld,val) 
-  ,"ends_with": lambda fld,val: ''' %s.endswith('%s') ''' % (fld,val) 
-  ,"not_ends_with": lambda fld,val: ''' not %s.endswith('%s') ''' % (fld,val) 
-  ,"contains": lambda fld,val: ''' %s in '%s' ''' % (fld,val) 
-  ,"not_contains": lambda fld,val: ''' not %s in '%s' ''' % (fld,val) 
+  ,"is_na": lambda fld,val: ''' n2str(%s) == '' ''' % fld
+  ,"is_not_na": lambda fld,val: ''' n2str(%s) != '' ''' % fld
+  ,"begins_with": lambda fld,val: ''' n2str(%s).startswith('%s') ''' % (fld,val) 
+  ,"not_begins_with": lambda fld,val: ''' not n2str(%s).startswith('%s') ''' % (fld,val) 
+  ,"ends_with": lambda fld,val: ''' n2str(%s).endswith('%s') ''' % (fld,val) 
+  ,"not_ends_with": lambda fld,val: ''' not n2str(%s).endswith('%s') ''' % (fld,val) 
+  ,"contains": lambda fld,val: ''' n2str(%s) in '%s' ''' % (fld,val) 
+  ,"not_contains": lambda fld,val: ''' not n2str(%s) in '%s' ''' % (fld,val) 
 }
 
-i2b2fields = ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf']
+i2b2fields = set(['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf'])
 
 # these are evaluated in the scope of each top level item in a cell dict (if any) and return T/F on which to select items
 selectors = {
-   'all': lambda **kwargs: True
+   'ALL': lambda **kwargs: True
   ,'codeIn_CC': lambda cc,CC,**kwargs: cc in CC if cc else False
   ,'inactivDiag': lambda mc,**kwargs: mc in ['DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2'] if mc else False
   ,'activeDiag': lambda mc,**kwargs: mc not in ['DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2'] if mc else False
@@ -238,7 +240,7 @@ rules2 = {
      # second value: template for naming column
     #,"extractors":[["last_numeric","{0}_last_num"]]
     # must be a string or callable
-    ,"selector": 'all'
+    ,"selector": 'ALL'
       # must be a string or a list
     ,"fieldlist": ['nv']
     # must be a string or a callable
@@ -265,7 +267,7 @@ rules2 = {
     ,"criteria": 'True'
     ,"split_by_code": False
     #,"extractors":[["true_false","{0}_tf"]]
-    ,"selector": 'all'
+    ,"selector": 'ALL'
     ,"fieldlist": 'all'
     ,"aggregator": 'any'
     ,"rulesuffix": 'tf'
@@ -276,7 +278,7 @@ rules2 = {
     ,"criteria":"True"
     ,"split_by_code": False
     #,"extractors":[["concat_unique","{0}_values"]]
-    ,"selector": 'all'
+    ,"selector": 'ALL'
     ,"fieldlist": ['cc']
     ,"aggregator": 'concatunique'
     ,"rulesuffix": 'cd'
@@ -288,8 +290,8 @@ rules_fallback = {
   'ruledesc':'(not documented)'
   ,'criteria':'True'
   ,'split_by_code': False
-  ,'selector':selectors['all']
-  ,'selector_stronly':'all'
+  ,'selector':selectors['ALL']
+  ,'selector_stronly':'ALL'
   ,'fieldlist':fieldlists['codemod']
   ,'aggregator': aggregators['concatunique']
   ,'aggregator_stronly':'concatunique'
