@@ -179,13 +179,30 @@ if __name__ == '__main__':
       dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
       colids=dfc.getColIDs(childids=['selid','addbid','shortname','longname','ruledesc','parent_name']
 		    ,childtype='rules')
-      dfc.prepChosen(dfc.rules['true_false'],userArgs={'MM':123})
-      dfc.prepChosen(dfc.rules['last_numeric_fltrcode'],userArgs={'aa':'bb','CC': 123})
-      testOCinput = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+      
+      # creates FOO_tf
+      testch0 = dfc.prepChosen(dfc.rules['true_false'])
+			       #,userArgs={'MM':123})
+      # creates FOO_lnc277e
+      testch1 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+			       ,userArgs={'aa':'bb','CC': 123})
+      # creates FOO_lnc9947
+      testch2 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
 				   ,userArgs={'vv':'bb','CC': 123, 'qq': 42})
-      #testOCinput = dfc.prepChosen(dfc.rules['true_false'],userArgs={'aa':'bb','CC': 123, 'qq': 42})
-      testOCinput['selector'] = testqb
-      testOC = DFOutCol(dfc,testOCinput)
+      # updates FOO_tf despite different args
+      testch3 = dfc.prepChosen(dfc.rules['true_false'],userArgs={'aa':'bb','CC': 123})
+      # updates FOO_lnc9947
+      testch4 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+				   ,userArgs={'vv':'bb','CC': 123, 'qq': 42})
+      # creates FOO_lnc9f70
+      testch5 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+				   ,userArgs={'aa':'bb','CC': 124})
+      # creates FOO_lncb208
+      testch6 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+				   ,userArgs={'aa':'bb','CC': 124, 'qq': 42})
+      # error
+      #testch7 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode'])
+      testOC = DFOutCol(dfc,testch0)
       testcell = json.loads(testjson)
       testdfo = testOC.processCell(testcell,testjson)
       #testsugg = [xx for xx in dfc.rules.values() if xx.get('suggested')]
