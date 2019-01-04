@@ -387,7 +387,6 @@ class DFMeta:
     
     self.updRules(rules=self.rules.copy(),suggestions=suggestions)
     
-    
   def updRules(self,rules=None,suggestions=None):
     '''Update with a new ruleset, optionally with suggestion algorithm'''
     if rules != None:
@@ -396,6 +395,25 @@ class DFMeta:
     for ii in self.incols:
       self.incols[ii].updRules(deepcopy(self.rules),suggestions)
     return self
+  
+  def userDesignedRule(self,rule,rulename,targetcols):
+    assert type(targetcols) == list
+    assert type(rulename) == str 
+    assert type(rule) == dict
+    rule['custom'] = True
+    rulename = makeTailUnq(rulename\
+      ,[kk for kk,vv in self.rules.items() if not vv.get('custom')],sep=''\
+	,pad=2,maxlen=16)
+    rule['rulename'] = rulename
+    rule['rulesuffix'] = makeTailUnq(rulename\
+      ,[vv['rulesuffix'] for vv in self.rules.values() if not vv.get('custom')]\
+	,sep='',pad=1,maxlen=3)
+    rule['criteria'] = '''colid in ['%s']''' % "','".join(targetcols)
+    rule = {rulename: rule}
+    self.rules.update(rule)
+    out = {}
+    for ii in targetcols: out[ii] = self[ii].updRules(rule).rules[rulename]
+    return out
   
   def updSuggestions(self,suggestions):
     '''Update with a new suggestion algorithm, not needed if already passed algorithm to updRules'''
