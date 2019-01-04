@@ -255,7 +255,7 @@ def qb2py(qb
   ,fields=[xx.get('name') for xx in qbfilterlist.values()]
   ,blacklistrxp='[^\w:|_]'
   ,toplevel=True
-  ):
+ ):
   assert type(qb) == dict
   if repr(type(blacklistrxp)) != '''<type '_sre.SRE_Pattern'>''':
     blacklistrxp = re.compile(blacklistrxp)
@@ -631,10 +631,14 @@ class DFCol:
 
       # the long/shortname fields depend on rulesuffix and should trigger its rebuild also
       if 'rulesuffix' in validateorfix:
+	# better but... maybe have separate suffix_rules and suffix_chosen checks... one
+	# will look in self.rules.items() and the other in self.chosen.items()
 	# if there are user arguments, base the suffix on those
 	myrulesuffix = rule.get('rulesuffix')
 	usedsuffixes = [vv['rulesuffix'] for kk,vv in self.rules.items() if kk!=rulename]
-	rule['rulesuffix'] = makeTailUnq(myrulesuffix,ref=usedsuffixes,sep='',maxlen=8)
+	usedsuffixes += [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk!=rulename]
+	rule['rulesuffix'] = makeTailUnq(myrulesuffix,ref=set(usedsuffixes)
+				  ,sep='',maxlen=8)
 	if(rule['rulesuffix']!=myrulesuffix): print('''
 	  Warning: in rule %s, the 'rulesuffix' argument was either missing or collided with
 	  a rulesuffix for an existing rule.
@@ -900,14 +904,26 @@ class DFCol:
 			retMatch is what returns if rule already exists in self.chosen
 			retChnew is what returns otherwise
     '''
-    if len(userArgs) > 0:
-      if type(userArgs) == dict:
-	userArgsClean = [str(xx) for xx in userArgs.values()]
-      elif type(userArgs) == list:
-	userArgsClean = [str(xx) for xx in userArgs]
-      else: raise ValueError('''
-	The 'userArgs' argument must be either a list or a dict for prepChosen''')
-    userArgsClean = [re.sub('[^\w:|_]','',xx) for xx in userArgs]
+    #TODO: This is actually kind of jacked. Need instead to separately 
+	 # sanitize keys and values, and re-form them into a dict
+	 # Force keys to maybe be two characters and upper case and unique
+	 # of course
+	 # Use assert to enforce userArgs being a dict
+    assert type(userArgs) == dict
+    userArgsClean = {}
+    for kk,vv in userArgs.items():
+      kkout = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
+		    ,userArgsClean.keys(),sep='',pad=1,maxlen=2)
+      try: userArgsClean.update({kkout:re.sub('[^\w:|_]','',str(vv))})
+      except: import pdb; pdb.set_trace()
+      
+      #if type(userArgs) == dict:
+	#userArgsClean = [str(xx) for xx in userArgs.values()]
+      #elif type(userArgs) == list:
+	#userArgsClean = [str(xx) for xx in userArgs]
+      #else: raise ValueError('''
+	#The 'userArgs' argument must be either a list or a dict for prepChosen''')
+    #userArgsClean = [re.sub('[^\w:|_]','',xx) for xx in userArgsClean]
     
     rule = self.valfixRule(rule,None,['longname','delbid','parent_name'
 				     ,'rulename','ruledesc','selector_stronly'
@@ -1058,6 +1074,7 @@ class DFOutCol:
     self.selector = myrule['selector']
     self.outcolid = myrule['longname']
     self.fldsep=fldsep
+    self.userArgs = myrule.get('userArgs',{})
     self.outcolmeta = ''
     
   def getHeader(self): return(self.outcolid)
