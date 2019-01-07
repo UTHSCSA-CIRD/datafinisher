@@ -322,7 +322,7 @@ def ob2tag(obj,delim='_',maxlen=8):
 		  # replace multiple _ with single ones
 		  ,re.sub('_+','_'
 		    # replace all non-alphanum chars with _
-		    ,re.sub('\W+','_',str(obj)))))[:maxlen]
+		    ,re.sub('\W+','_',str(obj)))[:maxlen]))
 
 # If str 'name' is in list 'ref' add a non-colliding suffix, enforcing a
 # maximal overall length
