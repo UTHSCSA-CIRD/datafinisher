@@ -311,12 +311,17 @@ def hshDctSorted(obj,maxlen=8):
   out = {kk:sorted(vv) if type(vv) == list else vv for kk,vv in obj.items()}
   return sha1(json.dumps(out,sort_keys=True)).hexdigest()[:maxlen]
 
+
 # Take an object and return a sanitized string representation with customizable
 # delimiters
 def ob2tag(obj,delim='_',maxlen=8): 
+  # replace _ with whatever you want delim to be
   return re.sub('_',delim
-		,re.sub('_+','_'
-		  ,re.sub('^_|_$',''
+		# remove trailing or leading _s
+		,re.sub('^_|_$',''
+		  # replace multiple _ with single ones
+		  ,re.sub('_+','_'
+		    # replace all non-alphanum chars with _
 		    ,re.sub('\W+','_',str(obj)))))[:maxlen]
 
 # If str 'name' is in list 'ref' add a non-colliding suffix, enforcing a
@@ -485,13 +490,19 @@ class DFMeta:
       
   #TODO: have a maxsufflen, maxsuffpad, and suffsep attributes to DFMeta
   #      To default to
-  def makeSffxUnq(self,rulesuffix,sep='',maxlen=8,*args,**kwargs):
-    assert type(rulesuffix) == str,"makeSffxUnq: rulesuffix must be a str"
-    inuse = [xx['rulesuffix'] for xx in self.rules.values()\
-      if xx['rulesuffix']]
-    return makeTailUnq(rulesuffix.lower(),inuse,sep=sep,maxlen=maxlen
+  # 
+  # which: the field of the rule to extract against which to guarantee
+  # uniqueness. In practice, 'rulename' or 'rulesuffix'
+  def makeNameUnq(self,namein,which='rulesuffix',sep='',maxlen=8
+		  ,*args,**kwargs
+  ):
+    assert type(namein) == str,"makeSffxUnq: namein must be a str"
+    namein = ob2tag(namein,maxlen=maxlen).lower()
+    inuse = self.rules.keys() if which == 'rulename'\
+      else [xx[which] for xx in self.rules.values() if xx[which]]
+    return makeTailUnq(namein,inuse,sep=sep,maxlen=maxlen
 		       ,*args,**kwargs)
-    
+  
   def getHeaders(self,bycol=False,cols=None,func='getHeader',*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
     and in addition whatever the current value of suggestPolicy is
@@ -741,7 +752,8 @@ class DFCol:
 	myrulesuffix = rule.get('rulesuffix')
 	usedsuffixes = [vv['rulesuffix'] for kk,vv in self.rules.items() if kk!=rulename]
 	#usedsuffixes += [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk!=rulename]
-	rule['rulesuffix'] = makeTailUnq(myrulesuffix,ref=set(usedsuffixes)
+	rule['rulesuffix'] = makeTailUnq(ob2tag(myrulesuffix).lower()
+				  ,ref=set(usedsuffixes)
 				  ,sep='',maxlen=8)
 	if(rule['rulesuffix']!=myrulesuffix): print('''
 	  Warning: in rule %s, the 'rulesuffix' argument was either missing or collided with
