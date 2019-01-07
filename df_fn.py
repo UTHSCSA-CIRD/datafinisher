@@ -257,7 +257,7 @@ def qb2py(qb
   ,blacklistrxp='[^\w:|_]'
   ,toplevel=True
  ):
-  assert type(qb) == dict
+  assert type(qb) == dict,"qb2py: qb is not a dict"
   if repr(type(blacklistrxp)) != '''<type '_sre.SRE_Pattern'>''':
     blacklistrxp = re.compile(blacklistrxp)
   # Group case
@@ -273,7 +273,8 @@ def qb2py(qb
     # get the rules sub-object
     myrules = qb['rules']
     # make sure it's a list
-    assert type(myrules) == list and len(myrules) > 0
+    assert type(myrules) == list and len(myrules) > 0,'''
+    qb2py: myrules is not a list'''
     # prepare expression
     out = lop % ','.join([qb2py(xx,pyops,fields,blacklistrxp,toplevel=False) 
 			  for xx in qb['rules']])
@@ -281,9 +282,11 @@ def qb2py(qb
   # Rule case
   elif len(set(['field','value','operator']) & set(qb.keys())) == 3:
     # check for existence of field else error
-    assert qb['field'] in fields
+    assert qb['field'] in fields,'''
+    qb2py: 'field' missing from the 'fields' argument'''
     # check for existence of operator else error
-    assert qb['operator'] in pyops.keys()
+    assert qb['operator'] in pyops.keys(),'''
+    qb2py: 'operator' missing from pyops'''
     # sanitize value/s
     myval = str()
     if type(qb['value']) == str: myval = blacklistrxp.sub('',qb['value'])
@@ -304,7 +307,7 @@ def qb2py(qb
 # Sort the first-level lists in a dict object, then take a hash of the
 # sorted json.dumps
 def hshDctSorted(obj,maxlen=8):
-  assert type(obj) == dict
+  assert type(obj) == dict,"hshDctSorted: obj is not a dict"
   out = {kk:sorted(vv) if type(vv) == list else vv for kk,vv in obj.items()}
   return sha1(json.dumps(out,sort_keys=True)).hexdigest()[:maxlen]
 
@@ -319,7 +322,7 @@ def ob2tag(obj,delim='_',maxlen=8):
 # If str 'name' is in list 'ref' add a non-colliding suffix, enforcing a
 # maximal overall length
 
-def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999):
+def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999,*args,**kwargs):
   '''The maximal length of the base name that will not exceed maxlen with suffix'''
   nmax = maxlen - pad - len(sep)
   # suffix regexp based on supplied sep and pad args
@@ -397,9 +400,9 @@ class DFMeta:
     return self
   
   def userDesignedRule(self,rule,rulename,targetcols):
-    assert type(targetcols) == list
-    assert type(rulename) == str 
-    assert type(rule) == dict
+    assert type(targetcols) == list,"userDesignedRule: targetcols is not a list"
+    assert type(rulename) == str,"userDesignedRule: rulename is not an str"
+    assert type(rule) == dict,"userDesignedRule: rule is not a dict"
     rule['custom'] = True
     rulename = makeTailUnq(rulename\
       ,[kk for kk,vv in self.rules.items() if not vv.get('custom')],sep=''\
@@ -462,7 +465,7 @@ class DFMeta:
     return out
 
   def finalizeChosen(self,chsnames={},chsrules={}):
-    assert type(chsnames) == dict
+    assert type(chsnames) == dict,"finalizeChosen: chsnames is not a dict"
     # Assumption that some/none/all of the columns 
     # Have lists in the chsnames dict, and those lists
     # consist of valid items in the chosen dicts of those
@@ -472,11 +475,22 @@ class DFMeta:
       iinames = []
       iinput = chsnames.get(ii,[])
       if type(iinput) != list:
-	assert type(iinput) in (str,unicode)
+	assert type(iinput) in (str,unicode),'''
+	finalizeChosen: item %s of chsnames is neither a 
+	list, str, nor unicode''' % ii
 	iinput = [iinput]
       iinames += iinput
       # not messing with chsrules yet
       self[ii].finalizeChosen(iinames)
+      
+  #TODO: have a maxsufflen, maxsuffpad, and suffsep attributes to DFMeta
+  #      To default to
+  def makeSffxUnq(self,rulesuffix,sep='',maxlen=8,*args,**kwargs):
+    assert type(rulesuffix) == str,"makeSffxUnq: rulesuffix must be a str"
+    inuse = [xx['rulesuffix'] for xx in self.rules.values()\
+      if xx['rulesuffix']]
+    return makeTailUnq(rulesuffix.lower(),inuse,sep=sep,maxlen=maxlen
+		       ,*args,**kwargs)
     
   def getHeaders(self,bycol=False,cols=None,func='getHeader',*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
@@ -636,8 +650,8 @@ class DFCol:
     ,aggregators=aggregators,fieldsep='/',i2b2fields=i2b2fields,userArgs={}
     ,argsrxp=re.compile('[^\w:|_]')
   ):
-    assert rule != None
-    assert type(rule) == dict
+    assert rule != None, "valfixRule: rule is missing"
+    assert type(rule) == dict,"valfixRule: rule is not a dict"
     try:
       check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
     except:
@@ -696,7 +710,7 @@ class DFCol:
       # if userArgs supplied and required by rule, extend the rulesuffix to 
       # distinguish from instances of that rule with different userArgs
       if 'userinput' in validateorfix and rule.get('split_by_code'):
-	assert type(userArgs) == dict
+	assert type(userArgs) == dict, "valfixRule: userArgs is not a dict"
 	if not userArgs: raise ValueError('''
 	  Rule %s requires non-empty user input''' % rulename)
 	else:
@@ -942,7 +956,7 @@ class DFCol:
 	 # Force keys to maybe be two characters and upper case and unique
 	 # of course
 	 # Use assert to enforce userArgs being a dict
-    assert type(userArgs) == dict
+    assert type(userArgs) == dict,"prepChosen: userArgs is not a dict"
     #userArgsClean = {}
     #for kk,vv in userArgs.items():
       #kkout = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
@@ -992,8 +1006,8 @@ class DFCol:
   def finalizeChosen(self,chsnames=[],chsrules={}):
     if type(chsnames) != list or type(chsrules) != dict:
       import pdb; pdb.set_trace()
-    assert type(chsnames) == list
-    assert type(chsrules) == dict
+    assert type(chsnames) == list,"finalizeChosen: chsnames is not a list"
+    assert type(chsrules) == dict,"finalizeChosen: chsrules is not a dict"
     if self.as_is_col: self.outcols = [DFOutColAsIs(self)]
     else:
       if not chsrules: 
