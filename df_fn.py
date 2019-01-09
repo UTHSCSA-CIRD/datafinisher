@@ -406,16 +406,23 @@ class DFMeta:
   
   def userDesignedRule(self,rule,rulename,targetcols):
     assert type(targetcols) == list,"userDesignedRule: targetcols is not a list"
-    assert type(rulename) == str,"userDesignedRule: rulename is not an str"
+    assert type(rulename) == str,"userDesignedRule: rulename is not a str"
     assert type(rule) == dict,"userDesignedRule: rule is not a dict"
     rule['custom'] = True
-    rulename = makeTailUnq(rulename\
-      ,[kk for kk,vv in self.rules.items() if not vv.get('custom')],sep=''\
-	,pad=2,maxlen=16)
+    # For now we will force all user designed rules to have unique names and
+    # suffixes, i.e. user cannot overwrite a previously designed rule by 
+    # assigning the same name and suffix. Otherwise, we get duplicate 
+    # undeletable chosen rules one the front-end
+    rulename = self.makeNameUnq(rulename,'rulename',sep='_',pad=2,maxlen=16)
+    #rulename = makeTailUnq(rulename,[kk for kk,vv in self.rules.items()\
+      #if not vv.get('custom')]
+		    #,sep='',pad=2,maxlen=16)
     rule['rulename'] = rulename
-    rule['rulesuffix'] = makeTailUnq(rulename\
-      ,[vv['rulesuffix'] for vv in self.rules.values() if not vv.get('custom')]\
-	,sep='',pad=1,maxlen=3)
+    rule['rulesuffix'] = self.makeNameUnq(rulename,'rulesuffix',sep='',pad=1
+				     ,maxlen=4)
+    #rule['rulesuffix'] = makeTailUnq(rulename\
+      #,[vv['rulesuffix'] for vv in self.rules.values() if not vv.get('custom')]\
+	#,sep='',pad=1,maxlen=3)
     rule['criteria'] = '''colid in ['%s']''' % "','".join(targetcols)
     rule = {rulename: rule}
     self.rules.update(rule)

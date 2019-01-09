@@ -173,7 +173,7 @@ if __name__ == '__main__':
     #if outfile=="":
     #  outfile = "data_"+args.csvin
     if path.isfile('testinput.py'):
-      from testinput import testheader,testmeta,testqb
+      from testinput import testheader,testmeta,testqb,testUserRule
       from rules import rules2
       dfm = DFMeta(testheader,testmeta,suggestions=autosuggestor)
       dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
@@ -202,12 +202,15 @@ if __name__ == '__main__':
 				   ,userArgs={'aa':'bb','CC': 124, 'qq': 42})
       # error
       #testch7 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode'])
-      testOC = DFOutCol(dfc,testch0)
-      testcell = json.loads(testjson)
-      testdfo = testOC.processCell(testcell,testjson)
+      #testOC = DFOutCol(dfc,testch0)
+      #testcell = json.loads(testjson)
+      #testdfo = testOC.processCell(testcell,testjson)
       #testsugg = [xx for xx in dfc.rules.values() if xx.get('suggested')]
       #testfvr = dfc.valfixRule(testsugg[0],None,['longname','selector','fieldlist','aggregator'])
-      dfc.finalizeChosen()
-      dfm['age_at_visit_days'].finalizeChosen()
+      #dfc.finalizeChosen()
+      #dfm['age_at_visit_days'].finalizeChosen()
+      testUDROut = dfm.userDesignedRule(testUserRule
+					,'custom'
+					,['v121_mlgnt_nplsm','v011_unspcfd_mlgnt'])
       import pdb; pdb.set_trace()
     #update_df(args.csvin)
