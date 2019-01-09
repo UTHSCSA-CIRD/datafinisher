@@ -532,32 +532,6 @@ class DFMeta:
   
   def getMetas(self,bycol=False,cols=None,func='getMeta',*args,**kwargs):
     return self.getHeaders(bycol=bycol,cols=cols,func=func,*args,**kwargs)
-    
-    # The stuff below no longer needed, the DFCol and DFOutCol getHeader
-    # now only return str lists
-    
-	      #suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols}
-    # return as unified list or dict
-    #out = [self.incols[ii].getHeader() for ii in cols]
-    ##suggestPolicy=self.suggestPolicy,*args,**kwargs) for ii in cols]
-    ## if out consists of lists... (as detected from its first element)
-    #if type(out[0]) == type([]):
-      ## flatten them, returning a list of dictionaries each specifying one 
-      ## output column
-      #return [ii for jj in out for ii in jj]
-    ## if out consists of dicts... (as detected from its first element)
-    #elif type(out[0]) == type({}):
-      ## iterate over the contributions of all the incols except the first
-      #for ii in range(1,len(out)):
-	## and extend the lists from all of them to the corresponding lists
-	## in the first in the order they appear (in the cols argument if 
-	## provided)
-	#for jj in out[0].keys():
-	  #out[0][jj] += out[ii][jj]
-      ## and return a dictionary of lists, each list representing that 
-      ## attribute from all the columns, all of them having the same length
-      ## as the number of output columns, and in the same order
-      #return out[0]
   
   def processRow(self,cells,pidname='PATIENT_NUM'):
     '''For each of the incols, do foo.processCell() passing each one its cell
