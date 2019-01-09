@@ -249,6 +249,100 @@ def dropletters(intext):
 ### for json parsing 
 #section json
 
+# strings or filehandles come in, and either errors or dicts come out
+# The dicts have: filehandle, csv.reader object, header row, meta row 
+def handleDelimFile(fref,mode='r',buffering=-1,dlc=None
+		    ,minlen=4,sample=1024
+):
+  nullReturn = (None,None,None,None)
+  if type(fref) == str:
+    # does file exist? Make file handle else fail
+    try:
+      # is the file at least minlen lines long?
+      with open(fref) as xx: _junk = [next(xx) for ii in range(minlen)]
+    except Exception,ee: 
+      Warning('''
+	File %s either too short or could not be opened. Skipping.
+	
+	%s''' % (str(fref),str(ee)))
+      return nullReturn
+    try: fref = open(fref,mode=mode,buffering=buffering)
+    except Exception,ee: 
+      Warning('(skipping, cannot read file) '+str(ee))
+      return nullReturn
+    
+  if type(fref) == file:
+    # can you read it via csv.Sniffer and get a non ' ' delim?
+    if not dlc:
+      try: dlc = csv.Sniffer().sniff(fref.read(1024))
+      except Exception,ee: 
+	Warning('(skipping, cannot parse csv) '+str(ee))
+	return nullReturn
+      # reset to start of file
+      fref.seek(0)
+    try: assert dlc.delimiter != ' ','''
+      %s seems to not be a delimited file. Skipping.''' % fref.name
+    except Exception,ee:
+      Warning(str(ee))
+      return nullReturn
+    
+    # make csv.reader
+    try: fdata = csv.reader(fref,dialect=dlc)
+    except Exception,ee: 
+      Warning('(skipping, cannot read csv) '+str(ee))
+      return nullReturn
+    
+    # get headers (valid header, len > 1) or fail
+    fhead = fdata.next()
+    assert len(fhead) > 1, '''
+    %s is being read in as if it only has one or fewer columns.
+    ''' % fref.name
+    # TODO: check for valid column names
+    assert 'patient_num' in fhead,'''
+    %s is missing the 'patient_num' column or possibly missing its column 
+    headers.''' % fref.name
+    
+    # get meta (TODO: extend to header length if needed)
+    fmeta = fdata.next()
+    lm = len(fmeta); lh = len(fhead)
+    if lm != lh:
+      if lm < lh:
+	fmeta = fmeta + ['']*(lh-lm)
+	Warning('''
+	  There are %d trailing columns without metadata in the second row
+	  of %s. Those columns will be dropped. Please check your data.
+	  ''',(lh-lm,fref.name))
+      else:
+	fhead = fhead + ['z%03d' % ii for ii in range(lm-lh)]
+	Warning('''
+	  In %s there seem to be %d columns missing their headers. Or it 
+	  might mean the entire header row is missing. Attempting to fill
+	  in missing headers nonetheless. Please check your data.
+	  ''',(fref.name,lm-lh))
+    # success. return fh,csv.reader,fhead,fmeta
+    return (fref,fdata,fhead,fmeta)
+
+  else: 
+    Warning('''%s is neither a file reference nor a file name. Skipping.
+      ''' % str(fref))
+    return nullReturn
+
+# If fref given, DFMeta will try to 
+# self.fh,self.data,fhead,fmeta = handleDelimFile(fref)
+# self.inhead = inhead if inhead else fhead
+# self.inmeta = inmeta if inmeta else fmeta
+# 
+# Can init with just inhead and inmeta, just fref, or both
+# in which case whichever of inhead and inmeta are provided override the fref
+# 
+# Without fref will need to later get updated with an fref or just processRows
+# from input
+#
+# In the future can be made to update data, inhead, and inmeta independently
+# after init
+#
+# 
+
 # Get a data structure (qb) returned by js querybuilder and try to turn it into 
 # valid python code
 def qb2py(qb
@@ -357,15 +451,33 @@ class DFMeta:
   
   Future plans: allow the first argument to be a file-handle
   '''
-  def __init__(self,inhead,inmeta=None,suggestPolicy='auto'
+  def __init__(self,fref=None,inhead=None,inmeta=None,suggestPolicy='auto'
 	       ,rules=deepcopy(rules2),suggestions=None
+	       ,mode='r',buffering=-1,dlc=None,minlen=4,sample=1024
   ):
-    if inmeta == None:
-      inmeta = ['---']*len(inhead)
+    # try to parse fref (filehandle/filename)
+    fhandle,fdata,fhead,fmeta = handleDelimFile(fref,dlc=dlc,mode=mode
+						,buffering=buffering
+						,minlen=minlen
+						,sample=sample)
+    assert any((fhead,inhead)),'''
+    DFMeta must have either an 'inhead' argument or a valid 'fref' argument
+    in order to initialize'''
+    
+    if not inhead: inhead = fhead
+    # TODO: inhead could be extracted from inmeta or fmeta someday
+    
+    if not any((fmeta,inmeta)): inmeta = ['---']*len(inhead)
+    elif not inmeta: inmeta = fmeta
+    else: pass
+    
     assert len(inhead) == len(inmeta), '''
     'inhead' and 'inmeta' args to DFMeta() must be same length'''
+    # TODO: normalize lengths, like handleDelimFile does?
     self.inhead = inhead
     self.inmeta = inmeta
+    self.fhandle = fhandle
+    self.data = fdata
     self.suggestPolicy = suggestPolicy
     self.rules = deepcopy(rules)
     #self.incols = {kk: {
