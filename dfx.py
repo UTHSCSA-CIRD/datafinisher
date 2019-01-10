@@ -173,10 +173,11 @@ if __name__ == '__main__':
     #if outfile=="":
     #  outfile = "data_"+args.csvin
     if path.isfile('testinput.py'):
-      from testinput import testheader,testmeta,testqb,testUserRule
+      from testinput import testheader,testmeta,testqb #,testUserRule
       from rules import rules2
       dfm = DFMeta('../../DEID_HSC20170563N.csv'
-	,testheader,testmeta,suggestions=autosuggestor)
+	#,testheader,testmeta
+	,suggestions=autosuggestor)
       dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
       colids=dfc.getColIDs(childids=['selid','addbid','shortname','longname','ruledesc','parent_name']
 		    ,childtype='rules')
@@ -210,9 +211,9 @@ if __name__ == '__main__':
       #testfvr = dfc.valfixRule(testsugg[0],None,['longname','selector','fieldlist','aggregator'])
       #dfc.finalizeChosen()
       #dfm['age_at_visit_days'].finalizeChosen()
-      testUDROut = dfm.userDesignedRule(testUserRule
-					,'custom'
-					,['v121_mlgnt_nplsm','v011_unspcfd_mlgnt'])
+      #testUDROut = dfm.userDesignedRule(testUserRule
+					#,'custom'
+					#,['v121_mlgnt_nplsm','v011_unspcfd_mlgnt'])
       testDelim10 = handleDelimFile('tenlines.csv')
       testDelim3 = handleDelimFile('threelines.csv')
       testDelimZ = handleDelimFile('df.py')
