@@ -2,7 +2,7 @@ import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
 import json, sys
 from os.path import dirname
 from copy import deepcopy
-from base64 import urlsafe_b64encode
+#from base64 import urlsafe_b64encode
 from hashlib import sha1
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
