@@ -446,6 +446,13 @@ def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999,*args,**kwargs):
 
 def n2str(xx): return '' if not xx else xx
 
+
+
+#######################################
+#######################################
+#  DFMeta
+#######################################
+#######################################
 class DFMeta: 
   '''Initialize with a list of column names and metadata 
   some of which is assumed to be strings convertible to dicts by wy of JSON
@@ -460,9 +467,10 @@ class DFMeta:
   '''
   def __init__(self,fref=None,inhead=None,inmeta=None,suggestPolicy='auto'
 	       ,rules=deepcopy(rules2),suggestions=None
+	       ,patient_num='patient_num',visit_day='age_at_visit_days'
 	       ,mode='r',buffering=-1,dlc=None,minlen=4,sample=1024
   ):
-    # try to parse fref (filehandle/filename)
+    '''try to parse fref (filehandle/filename)'''
     fhandle,fdata,fhead,fmeta = handleDelimFile(fref,dlc=dlc,mode=mode
 						,buffering=buffering
 						,minlen=minlen
@@ -487,13 +495,28 @@ class DFMeta:
     self.data = fdata
     self.suggestPolicy = suggestPolicy
     self.rules = deepcopy(rules)
-    #self.incols = {kk: {
-      #'dat': vv,'outcols':[{'cname':kk,'extr':'as_is'
-			      #,'dat':json.dumps(vv) if isinstance(vv,dict) else vv
-			      #,'args':[]}]
-      #} for kk,vv in zip(self.inhead,[json.loads(jj) 
-				      #if re.match('\{.*\}$',str(jj)) 
-				      #else jj for jj in self.inmeta])}
+    
+    self.pn_changed = None
+    if patient_num in inhead:
+      self.pn = patient_num
+      self.pn_ix = inhead.index(patient_num)
+      self.pn_last = None
+      self.np = 0
+    else: self.pn = None
+    
+    self.vs_diff = None
+    if visit_day in inhead:
+      # TODO: check that visit_day supports subtraction
+      self.vs = visit_day
+      self.vs_ix = inhead.index(visit_day)
+      self.vs_last = None
+    else: selv.vs = None
+    
+    self.nrows = 0
+    
+    self.errlog = []
+    self.errcount = 0
+      
     self.incols = {}
     # correct the input headers with what the metadata actually names them as
     #for kk,vv in zip(self.inhead,self.inmeta):
@@ -652,11 +675,43 @@ class DFMeta:
   def getMetas(self,bycol=False,cols=None,func='getMeta',*args,**kwargs):
     return self.getHeaders(bycol=bycol,cols=cols,func=func,*args,**kwargs)
   
-  def processRow(self,cells,pidname='PATIENT_NUM'):
+  def logErr(self,code=0,msg='Empty log',incol=None,outcol=None,row=None):
+    self.errcount += 1
+    self.errlog += [(self.errcount,row or self.nrow,code,str(msg),incol
+		     ,outcol)];
+    return '-'+str(errcount)+('.%05d' % self.code)
+  
+  def processRow(self,cells):
     '''For each of the incols, do foo.processCell() passing each one its cell
     and the pid, obtained by extracting the value specified by 'pidname'
     '''
-    pass
+    self.nrows += 1
+    if self.pn:
+      pn_changed = self.pn_last != cells[self.pn_ix]
+      if pn_changed: 
+	self.pn_last = cells[self.pn_ix]
+	self.np += 1
+	self.pn_changed = pn_changed
+      # TODO: catch when not sorted by patient_num, but this will be harder
+      # to do cleanly
+    if self.vs:
+      vs_diff = cells[self.vs_ix] - self.vs_last if pn_changed else 0
+      # TODO: instead of crashing here, maybe log the error and then proceed 
+      # like self.vs is False? Or maybe forgive it and keep trying? Which will
+      # cause less mess, be esier to diagnose and fix?
+      if vs_diff < 0:
+	self.errcount += 1
+	# Error1: negative time difference
+	self.errlog += [(self.errcount,self.nrows,1,'''
+		  negative time difference''')]
+	self.vs = False
+	self.vs_diff = None
+      else: 
+	self.vs_diff = vs_diff
+	self.vs_last = cells[self.vs_ix]
+    
+    return [self[yy].processCell(xx,self.pn_changed,self.vs_diff,self)\
+      for xx,yy in zip(cells,self.incols)]
     
 ''' Note: colmeta is a dict with the following fields:
  (see sql/dd.sql)
@@ -728,18 +783,25 @@ class DFColStatic:
   def updSuggestions(self,suggestions=None): pass
 
 
+#######################################
+#######################################
+#  DFCol
+#######################################
+#######################################
 class DFCol:
   ''' Everything this column needs to know should be contained in the colmeta
   '''
-  def __init__(self,colmeta,colname,rules=deepcopy(rules2),suggestions=None,as_is_col = False):
+  def __init__(self,colmeta,colname,rules=deepcopy(rules2),suggestions=None
+	       ,as_is_col = False,parent=None
+  ):
     self.colmeta = colmeta; self.incolid = colname; self.as_is_col = as_is_col;
     '''This is for later, to enable last-observation carry-forward extractors
     It compares current pid to previous so the carry-forward can be 
     restarted when the records for a new patient begin.
     '''
-    self.last_pid = None
-    # The set of derived columns chosen by the user and by suggestions
     self.chosen = {}; self.suggested = []; self.outcols = [];
+    # TODO: create a dummy DFMeta class with empty values
+    self.parent = parent
     """This is the info column, which should be a replica of the column in 
     the input CSV file that produced this column"""
     self.dfcol = [{'cname':colname,'args':{}}]
@@ -1249,19 +1311,31 @@ class DFCol:
     else:
       return None
 
-  def processCell(self,rawcellval,pid=None):
+  def processCell(self,rawcellval,pn_changed=None,vs_diff=None,retval=None
+		  ,log=None
+  ):
     '''Iterates over each of {self.dfcol,self.outcols} and uses values
     they contain to create and return a list of output of the same length
     '''
     if not self.outcols: self.finalizeChosen()
     # If empty, return empty strings, don't bother evaluating the rest
     if len(re.sub(r'\s+','',rawcellval))==0:
-      return [''] * len(self.outcols)
+      retval = ''
     else:
       try: cellval = json.loads(rawcellval)
       except Exception, ee:
-	return [str(ee)] * (len(self.outcols)-1) + [rawcellval]
-      return [xx.processCell(cellval,rawcellval) for xx in self.outcols]
+	# if the child processCell gets a retinstead value, it will
+	# immediately return it unless it's an as_is_col
+	# error code 100 = error in an incol, so all its outcols will be 
+	# affected
+	retval=log(100,str(ee),self.incolid) if log else str(ee)
+    if vs_diff != None:
+      if pn_changed:
+	self.vs_diff = 0
+      else:
+	self.vs_diff += vs_diff
+    return [xx.processCell(cellval,rawcellval,pn_changed=pn_changed
+			     ,vs_diff=vs_diff,retval=retval,log=log) for xx in self.outcols]
     
 # TODO: DFOutColSkip
 class DFOutColAsIs:
@@ -1278,8 +1352,14 @@ class DFOutColAsIs:
   def getMeta(self): return(self.outcolmeta)
 
   def processCell(self,cellval,rawcellval,**kwargs):
-    return rawcellval
+    # ignores everything except rawcellval which it returns
+    return rawcellval or ''
 
+#######################################
+#######################################
+#  DFOutCol
+#######################################
+#######################################
 class DFOutCol:
   def __init__(self,parent,rule,fldsep='/'):
     myrule = parent.valfixRule(rule=rule,rulename=None \
@@ -1291,35 +1371,35 @@ class DFOutCol:
     self.fldsep=fldsep
     self.userArgs = myrule.get('userArgs',{})
     self.outcolmeta = ''
+    self.retval_previous = None
     
   def getHeader(self): return(self.outcolid)
   def getMeta(self): return(self.outcolmeta)
 
-  def processCell(self,cellval,rawcellval,**kwargs):
-    # passthrough for empty values
-    #if len(re.sub(r'\s+', '',cellval))==0: return ''
-    if len(cellval)==0: return ''
-    # convert strings to dicts if needed
-    if type(cellval) == str:
-      try: cellval = json.loads(cellval)
+  def processCell(self,cellval,rawcellval,pn_changed=None,vs_diff=None
+		  ,retval=None,log=None
+  ):
+    if retval == None:
+      # Carry out the select/columns/colsep/aggregate
+      out = []
+      try:
+	for ii in range(cellval['count']):
+	  # we merge the user args with what's in each entry in the cell
+	  iiargs = {}; iiargs.update(self.userArgs)
+	  iiargs.update(cellval[str(ii)])
+	  if self.selector(**iiargs):
+	    out += [self.fldsep.join([str(n2str(cellval[str(ii)].get(kk)))\
+	      for kk in self.fieldlist])]
+	retval = self.aggregator(out) or ''
       except Exception, ee:
-	return str(ee)
-    # use the aggregator function specified by the rule governing this outcol
-    # after joining the fields of the individual entries with the delim string
-    out = []
-    for ii in range(cellval['count']):
-      if self.selector(**cellval[str(ii)]):
-	out += [self.fldsep.join([str(n2str(cellval[str(ii)].get(kk)))\
-	  for kk in self.fieldlist])]
-    return self.aggregator(out)
-    #return self.aggregator([self.fldsep.join([cellval[str(ii)][jj]\
-      ## ...those fields being in the fieldlist specified by the rule governing 
-      ## this outcol
-      #for jj in self.fieldlist])\
-	## ...and the records for which these fields are extracted are selected
-	## by the selector function specified by the rule governing this outcol
-	#for ii in range(cellval['count'])\
-	  #if self.selector(**cellval[str(ii)])])
+	# error code 200 = error in individual outcol
+	retval = log(200,str(ee),outcolid=self.outcolid) if log else str(ee)
+      else:
+	# retain previous non empty non-error result for this patient
+	# unless records for a new patient have started in which case
+	# reset that value regardless
+	if pn_changed or retval: self.retval_previous = retval
+    return retval
 
 def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
   """
