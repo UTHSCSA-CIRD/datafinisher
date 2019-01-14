@@ -190,8 +190,8 @@ fieldlists = {
 
 # these all take a list as input and return a scalar value as output
 aggregators = {
-   'last': lambda xx,**kw: xx[-1:]
-  ,'first': lambda xx,**kw: xx[:1]
+   'last': lambda xx,**kw: xx[-1:][0]
+  ,'first': lambda xx,**kw: xx[:1][0]
   ,'min': min
   ,'max': max
   ,'any': any
