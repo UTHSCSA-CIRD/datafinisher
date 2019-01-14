@@ -1,6 +1,8 @@
 import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
 import json, sys
+from os import path
 from os.path import dirname
+from datetime import datetime
 from copy import deepcopy
 #from base64 import urlsafe_b64encode
 from hashlib import sha1
@@ -251,10 +253,12 @@ def dropletters(intext):
 
 # strings or filehandles come in, and either errors or dicts come out
 # The dicts have: filehandle, csv.reader object, header row, meta row 
+# header offset, meta offset
+# TODO: argument/s to function indicating whether to expect header & meta rows
 def handleDelimFile(fref,mode='r',buffering=-1,dlc=None
-		    ,minlen=4,sample=1024
+		    ,minlen=4,sample=1024,**kwargs
 ):
-  nullReturn = (None,None,None,None)
+  nullReturn = (None,None,None,None,None,None)
   if type(fref) == str:
     # does file exist? Make file handle else fail
     try:
@@ -285,6 +289,12 @@ def handleDelimFile(fref,mode='r',buffering=-1,dlc=None
     except Exception,ee:
       Warning(str(ee))
       return nullReturn
+    
+    # find the offsets for the header and meta
+    fref.seek(0)
+    fref.readline(); ofsmeta = fref.tell()
+    fref.readline(); ofsdata = fref.tell()
+    fref.seek(0)
     
     # BOLO
     # In commit 30b2e57 of dfw and 1d02e8a, there was a bug where 
@@ -327,7 +337,7 @@ def handleDelimFile(fref,mode='r',buffering=-1,dlc=None
 	  in missing headers nonetheless. Please check your data.
 	  ''',(fref.name,lm-lh))
     # success. return fh,csv.reader,fhead,fmeta
-    return (fref,fdata,fhead,fmeta)
+    return (fref,fdata,fhead,fmeta,ofsmeta,ofsdata)
 
   else: 
     Warning('''%s is neither a file reference nor a file name. Skipping.
@@ -471,10 +481,9 @@ class DFMeta:
 	       ,mode='r',buffering=-1,dlc=None,minlen=4,sample=1024
   ):
     '''try to parse fref (filehandle/filename)'''
-    fhandle,fdata,fhead,fmeta = handleDelimFile(fref,dlc=dlc,mode=mode
-						,buffering=buffering
-						,minlen=minlen
-						,sample=sample)
+    fhandle,fdata,fhead,fmeta,ofsmeta\
+      ,ofsdata = handleDelimFile(fref,dlc=dlc,mode=mode,buffering=buffering
+				 ,minlen=minlen,sample=sample)
     assert any((fhead,inhead)),'''
     DFMeta must have either an 'inhead' argument or a valid 'fref' argument
     in order to initialize'''
@@ -491,6 +500,8 @@ class DFMeta:
     # TODO: normalize lengths, like handleDelimFile does?
     self.inhead = inhead
     self.inmeta = inmeta
+    self.ofsmeta = ofsmeta
+    self.ofsdata = ofsdata
     self.fhandle = fhandle
     self.data = fdata
     self.suggestPolicy = suggestPolicy
@@ -675,12 +686,143 @@ class DFMeta:
   def getMetas(self,bycol=False,cols=None,func='getMeta',*args,**kwargs):
     return self.getHeaders(bycol=bycol,cols=cols,func=func,*args,**kwargs)
   
+  def sampleInput(self,reset=True,nrows=1000,restoreoffset=False):
+    if not 'fhandle' in dir(self):
+      return ('Input data not available')
+    else:
+      if restoreoffset: oldoffset = self.fhandle.tell()
+      
+      self.fhandle.seek(0); more_rows = True; outrows = []
+      while len(outrows) < nrows  and more_rows:
+	try: outrows += [self.fhandle.readline()]
+	except StopIteration: more_rows = False
+	
+      if restoreoffset: self.fhandle.seek(oldoffset)
+      else: self.fhandle.seek(0)
+      return(outrows);
+
+
+	
+  
   def logErr(self,code=0,msg='Empty log',incol=None,outcol=None,row=None):
     self.errcount += 1
-    self.errlog += [(self.errcount,row or self.nrow,code,str(msg),incol
+    self.errlog += [(self.errcount,row or self.nrows,code,str(msg),incol
 		     ,outcol)];
-    return '-'+str(errcount)+('.%05d' % self.code)
+    # This should look like -888
+    return '-888%06d.%05d' % (self.errcount, code)
   
+  # IMPORTANT: if inrow is a single row, wrap it in square brackets. Otherwise
+  # it will be treated as a LIST of rows.
+  def processRows(self,outfile=None,dlc=None,inrow=None,infile=None
+		  ,reset=True,nrows=-1,returnwhat='filename',offset='auto'
+		  ,writeHeaders=True,outmode='w',**kwargs
+  ):
+    ''' figure out where to read from
+	precedence is as follows: inrow > infile > self.data
+    '''
+    if inrow: infile = iter(inrow)
+    elif infile: infh,infile,_junk,_junk,_junk\
+      ,ofs = handleDelimFile(infile,**kwargs)
+    else:  infh,infile,ofs = (self.fhandle,self.data,self.ofsdata)
+
+    '''what dialect to use if not specified'''
+    if not dlc:
+      if 'dialect' in dir(infile): dlc = infile.dialect
+      else: dlc = 'excel-tab'
+    
+    ''' Name the outfile if needed but not specified'''
+    if returnwhat in ('filename','filehandle','csvwriter'):
+      if outfile == None: 
+	if type(self.fhandle) == file: origname = self.fhandle.name
+	else: origname = datetime.now().strftime('%Y%m%d_%H%M%S')+'.csv'
+	outfile = path.normpath(path.dirname(origname))+'/'+\
+	  'df_'+path.basename(origname)
+      
+      if type(outfile) == str: 
+	outname = outfile
+	outfile = csv.writer(open(outfile,outmode),dlc)
+      elif type(outfile) == file: 
+	assert 'a' in outfile.mode or 'w' in outfile.mode,'''
+	If a file handle is passed to processRows() then the mode must be
+	'write' (w) or 'append' (a) '''
+	outname = outfile.name
+	outfile = csv.writer(outfile,dlc)
+      else: assert 'writerow' in dir(outfile),'''
+      If you pass the processRows() method an outfile argument that isn't a
+      file nor a file name then it's up to you to make sure that the object
+      you are passing has a writerow() method.
+      '''
+      mywrite = outfile.writerow
+    elif returnwhat == 'list':
+      outlist = []
+      def mywrite(xx,out=outlist): out += [xx]
+    else: Warning('''
+      processRows() was passed an invalid 'returnwhat' argument '%s'. The only
+      valid values are 'filename','filehandle', and 'list'. Ignoring input.
+      ''')
+    
+    if offset == 'auto':
+      if inrow: offset = None
+      elif 'ofs' in dir(): offset = ofs
+      else: offset = None
+    elif offset == None: pass
+    else: assert type(offset) in (long,int),'''
+    If you wish to explicitly specify a file offset for processRows(), it needs 
+    to be an integer. It's recommended that you leave it alone unless you know 
+    what you're getting into.'''
+    
+    ''' Set the row pointer if needed '''
+    if offset and infh in dir(): infh.seek(offset)
+    
+    ''' Now we have a next()-able object prepared along with the info needed to
+    read it.
+    '''
+    print 'Writing headers'
+    if writeHeaders:
+      mywrite(self.getHeaders())
+      mywrite(self.getMetas())
+      
+    print 'Starting to write lines'
+    more_rows = True
+    while (self.nrows < nrows or nrows<0) and more_rows:
+      try: latestrow = self.processRow(self.data.next())
+      except StopIteration: more_rows = False
+      # error code 300: write error
+      except Exception, ee: self.logErr(code=300,msg=str(ee))
+      else: mywrite(latestrow)
+    
+    if reset:
+      self.nrows = 3
+      self.errcount = 0
+      if offset and 'infh' in dir(): infh.seek(offset)
+    
+    if returnwhat == 'list': return outlist
+    if returnwhat == 'filename':
+      if 'outname' in dir(): return outname
+      else:
+	  Warning(''''
+	    processRows() was not given a file object nor a filename, so the
+	    best we can do is return a csv.writer object''')
+	  returnwhat = 'csvwriter'
+    if returnwhat == 'filehandle':
+      if 'infh' in dir(): return infh
+      else:
+	  Warning(''''
+	    processRows() was not given a file object nor a filename, so the
+	    best we can do is return a csv.writer object''')
+	  returnwhat = 'csvwriter'
+    else: return outfile
+    # 
+    # if outfile not given, tries to create a name based on fhandle or infile
+    # if outfile is False return list instead of saving to file
+    # TODO: use the StringIO library for faster previews
+    # if no fhandle and no dlc, dlc will be 'excel-tab'
+    # if nrows < 0 then reads all rows otherwise reads that many
+    # returnwhat can be: 'filename','filehandle', or 'list'
+    # row-counts) when reading from self.data, otherwise not.
+    # 
+    
+    
   def processRow(self,cells):
     '''For each of the incols, do foo.processCell() passing each one its cell
     and the pid, obtained by extracting the value specified by 'pidname'
@@ -695,23 +837,28 @@ class DFMeta:
       # TODO: catch when not sorted by patient_num, but this will be harder
       # to do cleanly
     if self.vs:
-      vs_diff = cells[self.vs_ix] - self.vs_last if pn_changed else 0
-      # TODO: instead of crashing here, maybe log the error and then proceed 
-      # like self.vs is False? Or maybe forgive it and keep trying? Which will
-      # cause less mess, be esier to diagnose and fix?
+      if pn_changed or self.vs_last == None:
+	vs_diff = 0
+      else: vs_diff = int(cells[self.vs_ix]) - self.vs_last
+      self.vs_last = int(cells[self.vs_ix])
+      # instead of crashing here, maybe log the error and then proceed 
+      # as if vs is false
       if vs_diff < 0:
-	self.errcount += 1
-	# Error1: negative time difference
-	self.errlog += [(self.errcount,self.nrows,1,'''
-		  negative time difference''')]
+	self.logErr(code=10,msg='Negative time difference')
 	self.vs = False
 	self.vs_diff = None
       else: 
 	self.vs_diff = vs_diff
-	self.vs_last = cells[self.vs_ix]
-    
-    return [self[yy].processCell(xx,self.pn_changed,self.vs_diff,self)\
-      for xx,yy in zip(cells,self.incols)]
+	self.vs_last = int(cells[self.vs_ix])
+    out = []
+    for xx,yy in zip(cells,self.inhead):
+      try: 
+	out += self[yy].processCell(xx,self.pn_changed,self.vs_diff
+			     ,log=self.logErr)
+      except Exception,ee: 
+	Warning('Calling from processRow, cannot processCell')
+	import pdb; pdb.set_trace()
+    return out;
     
 ''' Note: colmeta is a dict with the following fields:
  (see sql/dd.sql)
@@ -781,6 +928,10 @@ class DFColStatic:
   def updChoices(self,choices=None): pass
   def updRules(self,rules=None,suggestions=None): pass
   def updSuggestions(self,suggestions=None): pass
+
+
+
+
 
 
 #######################################
@@ -1317,8 +1468,10 @@ class DFCol:
     '''Iterates over each of {self.dfcol,self.outcols} and uses values
     they contain to create and return a list of output of the same length
     '''
+    if self.as_is_col: return([rawcellval])
     if not self.outcols: self.finalizeChosen()
     # If empty, return empty strings, don't bother evaluating the rest
+    cellval = None
     if len(re.sub(r'\s+','',rawcellval))==0:
       retval = ''
     else:
@@ -1328,14 +1481,20 @@ class DFCol:
 	# immediately return it unless it's an as_is_col
 	# error code 100 = error in an incol, so all its outcols will be 
 	# affected
-	retval=log(100,str(ee),self.incolid) if log else str(ee)
+	retval=log(100,str(ee),incol=self.incolid) if log else str(ee)
+	Warning('Calling from outer processCell, json.loads')
+	import pdb;pdb.set_trace()
     if vs_diff != None:
       if pn_changed:
 	self.vs_diff = 0
       else:
 	self.vs_diff += vs_diff
-    return [xx.processCell(cellval,rawcellval,pn_changed=pn_changed
+    out = [xx.processCell(cellval,rawcellval,pn_changed=pn_changed
 			     ,vs_diff=vs_diff,retval=retval,log=log) for xx in self.outcols]
+    if out in ([''],None,[]): 
+      Warning('Calling from outer processCell, out is missing')
+      import pdb; pdb.set_trace()
+    return out
     
 # TODO: DFOutColSkip
 class DFOutColAsIs:
@@ -1393,13 +1552,13 @@ class DFOutCol:
 	retval = self.aggregator(out) or ''
       except Exception, ee:
 	# error code 200 = error in individual outcol
-	retval = log(200,str(ee),outcolid=self.outcolid) if log else str(ee)
+	retval = log(200,str(ee),outcol=self.outcolid) if log else str(ee)
       else:
 	# retain previous non empty non-error result for this patient
 	# unless records for a new patient have started in which case
 	# reset that value regardless
 	if pn_changed or retval: self.retval_previous = retval
-    return retval
+    return retval or ''
 
 def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
   """
