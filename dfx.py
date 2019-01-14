@@ -218,5 +218,13 @@ if __name__ == '__main__':
       testDelim3 = handleDelimFile('threelines.csv')
       testDelimZ = handleDelimFile('df.py')
       testDelimX = handleDelimFile('threeFOO.csv')
+      # test a representative row of data
+      dfm.fhandle.seek(88271,0)
+      #testrow = dfm.data.next()
+      testfout = csv.writer(open('testfout.csv','w'),dialect=dfm.data.dialect)
+      testfout.writerow(dfm.getHeaders())
+      testfout.writerow(dfm.getMetas())
+      dfm.fhandle.seek(dfm.ofsdata)
+      while dfm.nrows <= 2003: testfout.writerow(dfm.processRow(dfm.data.next()))
       import pdb; pdb.set_trace()
     #update_df(args.csvin)
