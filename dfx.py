@@ -7,7 +7,7 @@ usage: dfx.py [-l] [-h] [-o OUTFILE] [csvin]
 
 import argparse,csv,json,re #,ast (for literal_eval, not yet used)
 from os import path
-from df_fn import xmetaj,xfieldj,rulesvalidate,DFMeta,DFCol,DFOutCol,DFOutColAsIs,autosuggestor
+from df_fn import xmetaj,xfieldj,DFMeta,DFCol,DFOutCol,DFOutColAsIs,autosuggestor
 from df_fn import makeTailUnq,qb2py,n2str,handleDelimFile
 # import pandas as pd (for DataFrame, not yet used)
 parser = argparse.ArgumentParser()
@@ -175,10 +175,11 @@ if __name__ == '__main__':
     if path.isfile('testinput.py'):
       from testinput import testheader,testmeta,testqb #,testUserRule
       from rules import rules2
-      dfm = DFMeta('../../DEID_HSC20170563N.csv'
+      dfm = DFMeta('../www/demodata.csv'
 	#,testheader,testmeta
 	,suggestions=autosuggestor)
-      dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
+      try: dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
+      except: dfc = dfm.incols['v006_Hrt_Rt_LNC']
       colids=dfc.getColIDs(childids=['selid','addbid','shortname','longname','ruledesc','parent_name']
 		    ,childtype='rules')
       
@@ -186,21 +187,21 @@ if __name__ == '__main__':
       testch0 = dfc.prepChosen(dfc.rules['true_false'])
 			       #,userArgs={'MM':123})
       # creates FOO_lnc277e
-      testch1 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+      testch1 = dfc.prepChosen(dfc.rules['last_numeric']
 			       ,userArgs={'aa':'bb','CC': 123})
       # creates FOO_lnc9947
-      testch2 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+      testch2 = dfc.prepChosen(dfc.rules['last_numeric']
 				   ,userArgs={'vv':'bb','CC': 123, 'qq': 42})
       # updates FOO_tf despite different args
       testch3 = dfc.prepChosen(dfc.rules['true_false'],userArgs={'aa':'bb','CC': 123})
       # updates FOO_lnc9947
-      testch4 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+      testch4 = dfc.prepChosen(dfc.rules['last_numeric']
 				   ,userArgs={'vv':'bb','CC': 123, 'qq': 42})
       # creates FOO_lnc9f70
-      testch5 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+      testch5 = dfc.prepChosen(dfc.rules['last_numeric']
 				   ,userArgs={'aa':'bb','CC': 124})
       # creates FOO_lncb208
-      testch6 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode']
+      testch6 = dfc.prepChosen(dfc.rules['last_numeric']
 				   ,userArgs={'aa':'bb','CC': 124, 'qq': 42})
       # error
       #testch7 = dfc.prepChosen(dfc.rules['last_numeric_fltrcode'])
@@ -226,5 +227,7 @@ if __name__ == '__main__':
       testfout.writerow(dfm.getMetas())
       dfm.fhandle.seek(dfm.ofsdata)
       while dfm.nrows <= 2003: testfout.writerow(dfm.processRow(dfm.data.next()))
+      #bat = {'v006_Mlgnt_nplsm':["v006_cd","v006_tf"]}
+      #dfm.finalizeChosen(bat)
       import pdb; pdb.set_trace()
     #update_df(args.csvin)
