@@ -33,216 +33,6 @@ cols_rules = ['sub_slct_std','sub_payload','sub_frm_std','sbwr','sub_grp_std'
 # the columns to pull (from df_dynsql) to create the data dictionary file
 cols_meta = ['colname', 'colname_long', 'rule'];
 
-###############################################################################
-# Functions and methods to use within SQLite                                  #
-###############################################################################
-#section python_udf
-
-# aggregator useful for generating SQL
-class sqlaggregate:
-  def __init__(self):
-    self.lvals = []; self.rvals = []
-    self.lfuns = []; self.rfuns = []
-    self.ops = []; self.joiner = ','
-  def step(self,lval,rval,lfun,op,rfun,joiner):
-    if lval in ['','None',None]: lval = ' '
-    if rval in ['','None',None]: rval = ' '
-    if lfun in ['','None',None]: lfun = ' {0} '
-    if rfun in ['','None',None]: rfun = ' {0} '
-    if op in ['','None',None]: op = ' '
-    if joiner in ['','None',None]: self.joiner = ','
-    else: self.joiner = joiner
-    self.lvals.append(lval)
-    self.rvals.append(rval)
-    self.lfuns.append(lfun)
-    self.rfuns.append(rfun)
-    self.ops.append(op)
-  def finalize(self):
-    # turn into tuples
-    rawvals = zip(self.lfuns,self.lvals,self.ops,self.rfuns,self.rvals);
-    # payload
-    out = [str(xx[0]).format(str(xx[1]))+\
-      str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals]
-    return self.joiner.join(out)
-
-# aggregation for diagnoses and similar data elements
-class diaggregate:
-  def __init__(self):
-    self.cons = {}
-    self.oocm = {}; self.ooc = []
-  def step(self,con,mod):
-    if con not in self.cons.keys():
-      self.cons[con] = [mod]
-    else:
-      if mod not in self.cons[con]:
-	self.cons[con].append(mod)
-  def finalize(self):
-    for ii in self.cons:
-      iimods = [jj for jj in self.cons[ii] if jj not in  ['@',None,'']]
-      if len(iimods) == 0:
-	self.ooc.append('"'+ii+'"')
-      else:
-	self.oocm[ii] = iimods
-    #oo += ['"'+ii+'":["'+'","'.join(self.cons[ii])+'"]' for ii in self.cons]
-    #oo = ",".join(oo)
-    return ",".join(self.ooc+['"'+ii+'":["'+'","'.join(self.oocm[ii])+'"]' for ii in self.oocm])
-  
-# generically jam together the ancillary fields to see if there is anything 
-# noteworthy anywhere in there note that normally you would use NULL or '' for 
-# some of these params (to bypass them), doing the aggregation only on the ones 
-# you don't expect to see
-class infoaggregate:
-  def __init__(self):
-    self.cons = {}
-  def step(self,con,mod,ins,vtp,tvc,nvn,vfl,qty,unt,loc,cnf):
-    self.ofvars = {'cc':str(con),'mc':str(mod),'ix':str(ins),'vt':str(vtp),'tc':str(tvc),'vf':str(vfl),'qt':str(qty),'un':str(unt),'lc':str(loc),'cf':str(cnf)}
-    # go through each possible arg, check if it's NULL/@/''
-    # if not, add to self.cons
-    if nvn not in ['@','None',None,'']:
-      if 'nv' not in self.cons.keys():
-	self.cons['nv'] = 1
-      else:
-	self.cons['nv'] += 1
-    for ii in self.ofvars:
-      if self.ofvars[ii] not in ['@','None',None,'']:
-	if ii not in self.cons.keys():
-	  self.cons[ii] = [self.ofvars[ii]]
-	elif self.ofvars[ii] not in self.cons[ii]:
-	  self.cons[ii] += [self.ofvars[ii]]
-  def finalize(self):
-    # oh... python's dictionary format looks just like JSON, and you can convert it to a string
-    # the replace calls are just to make it a little more compact
-    if 'nv' in self.cons.keys():
-      if self.cons['nv']==1:
-	del self.cons['nv']
-      else:
-	self.cons['nv'] = str(self.cons['nv'])
-    if 'ix' in self.cons.keys():
-      if len(self.cons['ix']) == 1:
-      #if self.cons['ix'] == ['1']:
-	del self.cons['ix']
-    return (str(self.cons)[1:-1]).replace("', '","','").replace(": ",":")
-
-# Packs a set of rows from i2b2 concept_dimension into a JSON object (string)
-class jsonaggregate:
-  def __init__(self):
-    self.entries = {}
-  def step(self,st,cc,mc,ix,vt,tc,nv,vf,qt,un,lc,cf):
-    fields = vars()
-    self.entries[len(self.entries)] = ({
-      xx: fields.get(xx,None) if fields.get(xx,None) not in ['@',None,'','None'] else None 
-      for xx in ('st','cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf')})
-  def finalize(self):
-    self.entries['count'] = len(self.entries)
-    #import pdb; 
-    #if(self.entries['count']>1): pdb.set_trace();
-    return json.dumps(self.entries)
-
-# this is the kitchen-sink aggregator-- doesn't really condense the data, 
-# rather the purpose is to preserve everything there is to be known about 
-# each OBSERVATION_FACT entry while still complying with the 
-# one-row-per-patient-date requirement
-class debugaggregate:
-  def __init__(self):
-    self.entries = []
-  def step(self,cc,mc,ix,vt,tc,nv,vf,qt,un,lc,cf):
-    foo = vars()
-    bar = {xx: foo.get(xx,None) if foo.get(xx,None) not in ['@',None,'','None'] else None for xx in ('cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf')}
-    import pdb; pdb.set_trace();
-    self.entries.append(",".join(['"'+ii+'":"'+str(vars()[ii])+'"' for ii in ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf'] if vars()[ii] not in ['@',None,'','None']]))
-  def finalize(self):
-    return "{"+"},{".join(self.entries)+"}"
-
-# trim and concatenate together strings, e.g. to make column names 
-def trimcat(*args): return ''.join([ii.strip() for ii in args])
-  
-# from the template in the first argument ({0},{1}, etc.)
-# and the replacement variables in the second, put together a string
-# useful for generating SQL 
-def pyformat(string,*args): return string.format(*args)
-
-# this is to register a SQLite function for pulling out matching substrings 
-# (if found) and otherwise returning the original string. Useful for extracting 
-# ICD9, CPT, and LOINC codes from concept paths where they are embedded. For 
-# ICD9 the magic pattern is:
-# '.*\\\\([VE0-9]{3}\.{0,1}[0-9]{0,2})\\\\.*'
-# Returns last match or original text if no match
-def ifgrp(pattern,txt):
-    #rs = re.search(re.compile(pattern),txt)
-    rs = re.findall(re.compile(pattern),txt)
-    if len(rs):
-      rs = rs[-1]
-      if isinstance(rs,tuple): return rs[0]
-      else: return rs
-    else:
-      return txt 
-    #else:
-    #  return rs.group(1)
-    
-def subgrp(pattern,rep,txt):
-  return re.sub(pattern,str(rep),str(txt))
-
-# The rdt and rdst functions aren't exactly user-defined SQLite functions...
-# They are python functions that emit a string to concatenate into a larger SQL query
-# and send back to SQL... because SQLite has a native julianday() function that's super
-# easy to use. So, think of rdt and rdst as pseudo-UDFs
-def rdt(datecol,factor):
-    if factor == 1:
-      return 'date('+datecol+')'
-    else:
-      factor = str(factor)
-      return 'date(round(julianday('+datecol+')/'+factor+')*'+factor+')'
-    
-# this one is a wrapper for rdt but with 'start_date' hardcoded as first arg
-# because it occurrs so often
-def rdst(factor):
-    return rdt('start_date',factor)
-
-# Next two are more pseudo-UDFs, that may at some point be used by dd.sql
-def dfctday(**kwargs):                                          
-  if kwargs is not None:
-    oo = "replace(group_concat(distinct '{'||"
-    for key,val in kwargs.iteritems():
-      oo += """coalesce('{0}:"'||{1}||'",','')||""".format(key,val)
-    oo += "'}'),',}','}')"                                             
-    return oo
-  
-def dfctcode(**kwargs):
-   if kwargs is not None:
-     oo = ""
-     for key,val in kwargs.iteritems():
-       oo += """coalesce('{0}:['||group_concat(distinct '"'||{1}||'"')||'],','')||""".format(key,val)
-     return oo[:-2].replace('],',']')
-
-# Omit "least relevant" words to make a character string shorter
-def shortenwords(words,limit):
-  """ Initialize the data, lengths, and indexes"""
-  #get rid of the numeric codes
-  words = re.sub('[0-9]','',words)
-  wrds = words.split(); lens = map(len,wrds); idxs=range(len(lens))
-  if limit >= len(words):
-    return(words)
-  """ sort the indexes and lengths"""
-  idxs.sort(key=lambda xx: lens[xx]); lens.sort()
-  """ initialize the threshold and the vector of 'most important' words"""
-  sumidx=0; keep=[]
-  # turned out that checking the lengths of the lens and idxs is what it takes to avoid crashes
-  while sumidx < limit and len(lens) > 0 and len(idxs) > 0:
-    sumidx += lens.pop()
-    keep.append(idxs.pop())
-  keep.sort()
-  shortened = [wrds[ii] for ii in keep]
-  return " ".join(shortened)
-
-# This function shortens words by squeezing out vowels, most non-alphas, and 
-# repeating letters the first regexp replaces multiple ocurrences of the same 
-# letter with one ocurrence of that letter the \B matches a word boundary... 
-# so we only remove vowels from inside words, not leading lettters
-def dropletters(intext):
-  return re.sub(r"([a-z_ ])\1",r"\1",re.sub("\B[aeiouyAEIOUY]+","",re.sub("[^a-zA-Z _]"," ", intext)))
-
-#end_section python_udf
-
 
 ###############################################################################
 # Functions used in df.py directly                                            #
@@ -458,6 +248,10 @@ def n2str(xx): return '' if not xx else xx
 
 
 
+
+
+
+
 #######################################
 #######################################
 #  DFMeta
@@ -639,12 +433,13 @@ class DFMeta:
     for ii in self.inhead:
       iinames = []
       iinput = chsnames.get(ii,[])
-      if type(iinput) != list:
-	assert type(iinput) in (str,unicode),'''
-	finalizeChosen: item %s of chsnames is neither a 
-	list, str, nor unicode''' % ii
-	iinput = [iinput]
-      iinames += iinput
+      if iinput:
+	if type(iinput) != list:
+	  assert type(iinput) in (str,unicode),'''
+	  finalizeChosen: item %s of chsnames is neither a 
+	  list, str, nor unicode''' % ii
+	  iinput = [iinput]
+	iinames += iinput
       # not messing with chsrules yet
       self[ii].finalizeChosen(iinames)
       
@@ -714,6 +509,7 @@ class DFMeta:
   # IMPORTANT: if inrow is a single row, wrap it in square brackets. Otherwise
   # it will be treated as a LIST of rows.
   def processRows(self,outfile=None,dlc=None,inrow=None,infile=None
+		  ,chosenCols={}
 		  ,reset=True,nrows=-1,returnwhat='filename',offset='auto'
 		  ,writeHeaders=True,outmode='w',**kwargs
   ):
@@ -774,15 +570,26 @@ class DFMeta:
     ''' Set the row pointer if needed '''
     if offset and infh in dir(): infh.seek(offset)
     
+    if chosenCols: 
+      assert type(chosenCols) == dict,'''
+      The chosenCols argument to processRows must be a dict whose keys
+      match the names the inhead list of the DFMeta object
+      '''
+      assert len(set(self.inhead)+set(chosenCols.keys()))>0,'''
+      None of the names provided in the chosenCols argument to processRows 
+      match any of the input columns.
+      '''
+      self.finalizeChosen(chsnames=chosenCols)
+      
     ''' Now we have a next()-able object prepared along with the info needed to
     read it.
     '''
-    print 'Writing headers'
+    print 'processRows() is writing headers'
     if writeHeaders:
       mywrite(self.getHeaders())
       mywrite(self.getMetas())
       
-    print 'Starting to write lines'
+    print 'processRows() is writing data'
     more_rows = True
     while (self.nrows < nrows or nrows<0) and more_rows:
       try: latestrow = self.processRow(self.data.next())
@@ -791,6 +598,7 @@ class DFMeta:
       except Exception, ee: self.logErr(code=300,msg=str(ee))
       else: mywrite(latestrow)
     
+    print 'processRows() is cleaning up and returning results'
     if reset:
       self.nrows = 3
       self.errcount = 0
@@ -839,8 +647,8 @@ class DFMeta:
     if self.vs:
       if pn_changed or self.vs_last == None:
 	vs_diff = 0
-      else: vs_diff = int(cells[self.vs_ix]) - self.vs_last
-      self.vs_last = int(cells[self.vs_ix])
+      else: vs_diff = float(cells[self.vs_ix]) - self.vs_last
+      self.vs_last = float(cells[self.vs_ix])
       # instead of crashing here, maybe log the error and then proceed 
       # as if vs is false
       if vs_diff < 0:
@@ -849,7 +657,7 @@ class DFMeta:
 	self.vs_diff = None
       else: 
 	self.vs_diff = vs_diff
-	self.vs_last = int(cells[self.vs_ix])
+	self.vs_last = float(cells[self.vs_ix])
     out = []
     for xx,yy in zip(cells,self.inhead):
       try: 
@@ -988,8 +796,6 @@ class DFCol:
       
     # Of the rules available, the ones that are valid for this column
     self.updRules(deepcopy(rules),suggestions)
-    #import pdb; pdb.set_trace()
-    #foo = self.runRule(self.rules['true_false'])
   
   '''
   # rules:
@@ -1017,231 +823,216 @@ class DFCol:
   ):
     assert rule != None, "valfixRule: rule is missing"
     assert type(rule) == dict,"valfixRule: rule is not a dict"
-    try:
-      check = skipcheck or eval(rule.get('criteria',fallback['criteria']),self.colmeta)
-    except:
-      import pdb; pdb.set_trace()
-    if(check):
-      if usedeepcopy: rule = deepcopy(rule)
-      
-      # fill in missing rulename if available
-      if not rulename:
-	rulename = rule.get('rulename')
-	if not rulename: raise ValueError('''
-	  Missing 'rulename' and no embedded copy in 'rule' argument on which
-	  to fall back.''')
-      
-      #section # dependencies
-      # ... because some checks implicitly require other checks
-      if 'userinput' in validateorfix:
-	if not 'split_by_code' in validateorfix: validateorfix += ['split_by_code']
-	if not 'rulesuffix' in validateorfix: validateorfix += ['rulesuffix']
-      
-      if set(['longname','shortname']) & set(validateorfix):
-	if not 'rulesuffix' in validateorfix: validateorfix += ['rulesuffix']
-      
-      if set(['addbid','selid','delbid']) & set(validateorfix):
-	if not 'shortname' in validateorfix: validateorfix += ['shortname']
-      
-      # we let selector_stronly make sure the code is exectuable
-      if 'selector' in validateorfix:
-	if not 'selector_stronly' in validateorfix: 
-	  validateorfix += ['selector_stronly']
-      
-      #end_section
-      
-      #section # generally useful
-      
-      if 'rulename' in validateorfix: rule['rulename'] = rulename
+    check = skipcheck or eval(rule.get('criteria',fallback['criteria'])
+			      ,self.colmeta)
+    if not check: return None
 
-      if 'parent_name' in validateorfix: rule['parent_name'] = self.incolid
-      
-      if 'dividchosen' in validateorfix: rule['divIDchosen'] = self.get('divIDchosen')
-      
-      if 'suggested' in validateorfix:
-	if not rule.get('suggested'): rule['suggested'] = fallback['suggested']
-      
-      if 'ruledesc' in validateorfix:
-	if not rule.get('ruledesc'): 
-	  raise ValueError('Rule %s must have a brief description (in its ruledesc field)' % rulename)
+    if usedeepcopy: rule = deepcopy(rule)
+    
+    # fill in missing rulename if available
+    if not rulename:
+      rulename = rule.get('rulename')
+      if not rulename: raise ValueError('''
+	Missing 'rulename' and no embedded copy in 'rule' argument on which
+	to fall back.''')
+    
+    #section # dependencies
+    # ... because some checks implicitly require other checks
+    if 'userinput' in validateorfix:
+      if not 'split_by_code' in validateorfix: validateorfix += ['split_by_code']
+      if not 'rulesuffix' in validateorfix: validateorfix += ['rulesuffix']
+    
+    if set(['longname','shortname']) & set(validateorfix):
+      if not 'rulesuffix' in validateorfix: validateorfix += ['rulesuffix']
+    
+    if set(['addbid','selid','delbid']) & set(validateorfix):
+      if not 'shortname' in validateorfix: validateorfix += ['shortname']
+    
+    # we let selector_stronly make sure the code is exectuable
+    if 'selector' in validateorfix:
+      if not 'selector_stronly' in validateorfix: 
+	validateorfix += ['selector_stronly']
+    
+    #end_section
+    
+    #section # generally useful
+    
+    if 'rulename' in validateorfix: rule['rulename'] = rulename
 
-      # this just insures there is a split_by_code, with a value of False
-      # if not specified otherwise
-      if 'split_by_code' in validateorfix:
-	if 'split_by_code' not in rule: 
-	  rule['split_by_code'] = rules_fallback['split_by_code']
-	  # = len(rule.get('args',()))>0
-	  
-      # if userArgs supplied and required by rule, extend the rulesuffix to 
-      # distinguish from instances of that rule with different userArgs
-      if 'userinput' in validateorfix and rule.get('split_by_code'):
-	assert type(userArgs) == dict, "valfixRule: userArgs is not a dict"
-	if not userArgs: raise ValueError('''
-	  Rule %s requires non-empty user input''' % rulename)
-	else:
-	  userArgsClean = {}
-	  for kk,vv in userArgs.items():
-	    # insure unique and standardized arg names
-	    # TODO: crosscheck against what rule specifies
-	    kkclean = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
-	      ,userArgsClean.keys(),sep='',pad=1,maxlen=2)
-	    if type(vv) == list:
-	      vvclean = [argsrxp.sub('',str(xx)) for xx in vv]
-	    elif type(vv) in [str,int,float,unicode]:
-	      vvclean = argsrxp.sub('',str(vv))
-	    else: raise ValueError('''
-	      The userArgs argument must be a dict that contains only objects
-	      of type list,str,int,float, or unicode. You provided %s which is
-	      %s
-	      ''' % (vv,type(vv)))
-	    userArgsClean.update({kkclean:vvclean})
-	  rule['userArgs'] = userArgsClean
-	  rule['argsuffix'] = hshDctSorted(userArgsClean,4)
+    if 'parent_name' in validateorfix: rule['parent_name'] = self.incolid
+    
+    if 'dividchosen' in validateorfix: rule['divIDchosen'] = self.get('divIDchosen')
+    
+    if 'suggested' in validateorfix:
+      if not rule.get('suggested'): rule['suggested'] = fallback['suggested']
+    
+    if 'ruledesc' in validateorfix:
+      if not rule.get('ruledesc'): 
+	raise ValueError('Rule %s must have a brief description (in its ruledesc field)' % rulename)
 
-      # the long/shortname fields depend on rulesuffix and should trigger its rebuild also
-      if 'rulesuffix' in validateorfix:
-	# better but... maybe have separate suffix_rules and suffix_chosen checks... one
-	# will look in self.rules.items() and the other in self.chosen.items()
-	# if there are user arguments, base the suffix on those
-	myrulesuffix = rule.get('rulesuffix')
-	usedsuffixes = [vv['rulesuffix'] for kk,vv in self.rules.items() if kk!=rulename]
-	#usedsuffixes += [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk!=rulename]
-	rule['rulesuffix'] = makeTailUnq(ob2tag(myrulesuffix).lower()
-				  ,ref=set(usedsuffixes)
-				  ,sep='',maxlen=8)
-	if(rule['rulesuffix']!=myrulesuffix): print('''
-	  Warning: in rule %s, the 'rulesuffix' argument was either missing or collided with
-	  a rulesuffix for an existing rule.
-	  ''' % rulename)
-	#if not myrulesuffix or myrulesuffix[:8] in usedsuffixes:
-	  #if not rulename[:8] in [vv['rulesuffix'] for vv in self.rules.values()]:
-	    #rule['rulesuffix'] = rulename[:8]
-	  #else: rule['rulesuffix'] = urlsafe_b64encode(json.dumps(rule,sort_keys=True))[:8]
-	  
-      #end_section
-	  
-      #section # always overwrite when applicable even if exists
-      
-      if 'longname' in validateorfix:
-	#mylongname = rule.get('longname')
-	#if not mylongname or mylongname in [vv['longname'] for vv in self.rules.values()]: 
-	rule['longname'] = self.incolid + '_' + rule['rulesuffix']\
-	  + n2str(rule.get('argsuffix'))
+    # this just insures there is a split_by_code, with a value of False
+    # if not specified otherwise
+    if 'split_by_code' in validateorfix:
+      if 'split_by_code' not in rule: 
+	rule['split_by_code'] = rules_fallback['split_by_code']
+	# = len(rule.get('args',()))>0
 	
-      # since our *id fields depend on shortname, those should trigger its rebuild also
-      if 'shortname' in validateorfix:
-	#myshortname = rule.get('shortname')
-	#if not myshortname or myshortname in [vv['shortname'] for vv in self.rules.values()]: 
-	rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']\
-	  + n2str(rule.get('argsuffix'))
-	  
-      # for addRule
-      if 'addbid' in validateorfix: rule['addbid'] = 'ab-'+rule['shortname']
-      if 'selid' in validateorfix: rule['selid'] = 'sl-'+rule['shortname']
-      # for addChosen
-      if 'delbid' in validateorfix: rule['delbid'] = 'db-'+rule['shortname']
-      
-      #if not rule.get('criteria'): rule['criteria'] = fallback['criteria']
-      #end_section
-      
-      #section # syntax-only checks, no creation of compiled code
-      # ...but names of selectors can be inserted and compiled code is permitted
-      # if it already exists unless selector_stronly is set
-      if set(['selector_stronly','selector_checkonly']) & set(validateorfix):
-	myselector = rule.get('selector')
-
-	if not myselector: rule['selector'] = fallback['selector_stronly']
-
-	if type(myselector) == dict and \
-	  len(set(['condition','rules']) & set(myselector.keys())) == 2:
-	  myselector = qb2py(myselector)
-
-	if type(myselector) != str: 
-	  if 'selector_stronly' in validateorfix: raise ValueError('''
-	    In rule %s the 'selector' argument may only be a string. Currently it is a %s :
-	    %s
-	    ''' % (rulename, type(myselector),myselector))
-	  elif not callable(myselector): raise ValueError('''
-	    In rule %s the 'selector' argument needs to be valid python code. Currently it is:
-	    %s
-	    ''' % (rulename,myselector))
-	  else: rule['selector'] = myselector
-	elif myselector not in selectors:
-	  try: compile(myselector,'<string>','eval')
-	  except: raise SyntaxError('''
-		  Rule %s has a selector argument that is not valid python code: 
-		  %s
-		  ''' % (rulename,myselector))
-	  rule['selector'] = myselector
-	  
-	
-      if 'aggregator_stronly' in validateorfix:
-	myaggregator = rule.get('aggregator')
-	if not myaggregator: rule['aggregator'] = fallback['aggregator_stronly']
-	elif type(myaggregator) != str: raise ValueError('''
-	  Rule %s 'aggregator' argument must be a string
-	  ''' % rulename)
-	elif not myaggregator in aggregators: raise ValueError('''
-	  Rule %s 'aggregator' argument must be one of the following:
-	  %s''' % (rulename,aggregators.keys()))
-	else: pass
-	
-      #end_section
-      
-      
-      #section # needed for creating an outCol object
-      # TODO: don't create lambdas here, only code for the outCol.__init__ to compile into callables
-      if 'selector' in validateorfix:
-	myselector = rule.get('selector')
-	# The below is already  checked by selector_stronly
-	#if not myselector: rule['selector'] = fallback['selector']
-	#else:
-	if not callable(myselector):
-	  if type(myselector) == str:
-	    if myselector in selectors:
-	      rule['selector'] = selectors[myselector]
-	    else: 
-	      #try: compile(myselector,'<string>','eval')
-	      #except: raise SyntaxError('''
-		#Rule %s has a selector argument that is not valid python code: 
-		#%s
-		#''' % (rulename,myselector))
-	      # TODO: just compile it and let the outCol.__init__() call it
-	      rule['selector'] = eval('lambda cc=None,mc=None,ix=None,vt=None'+
-			       ',tc=None,nv=None,vf=None,qt=None,un=None'+
-			       ',lc=None,cf=None,**kwargs:'+myselector)
+    # if userArgs supplied and required by rule, extend the rulesuffix to 
+    # distinguish from instances of that rule with different userArgs
+    if 'userinput' in validateorfix and rule.get('split_by_code'):
+      assert type(userArgs) == dict, "valfixRule: userArgs is not a dict"
+      if not userArgs: raise ValueError('''
+	Rule %s requires non-empty user input''' % rulename)
+      else:
+	userArgsClean = {}
+	for kk,vv in userArgs.items():
+	  # insure unique and standardized arg names
+	  # TODO: crosscheck against what rule specifies
+	  kkclean = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
+	    ,userArgsClean.keys(),sep='',pad=1,maxlen=2)
+	  if type(vv) == list:
+	    vvclean = [argsrxp.sub('',str(xx)) for xx in vv]
+	  elif type(vv) in [str,int,float,unicode]:
+	    vvclean = argsrxp.sub('',str(vv))
 	  else: raise ValueError('''
-	    In rule %s the selector needs to be an str or a callable object
-	    ''' % rulename)
-      
-      if 'fieldlist' in validateorfix:
-	myfieldlist = rule.get('fieldlist')
-	if not myfieldlist: rule['fieldlist'] = fallback['fieldlist']
-	elif not type(myfieldlist) in [str,list]: 
-	  raise ValueError('''
-	    Rule %s must have a list of character strings or the name of an existing field list in its fieldlist attribute
-	    ''' % rulename)
-	elif type(myfieldlist) == str and myfieldlist in fieldlists:
-	      rule['fieldlist'] = fieldlists[myfieldlist]
-	else:
-	  if type(myfieldlist) == str: myfieldlist = [myfieldlist]
-	  invalidfields = set(myfieldlist)-(i2b2fields)
-	  if len(invalidfields)>0:
-	    raise ValueError('Rule %s fieldlist attribute references nonexistant fields %s' % (rulename,invalidfields))
-	  else: rule['fieldlist'] = myfieldlist
-	
-      if 'aggregator' in validateorfix:
-	myaggregator = rule.get('aggregator')
-	if not myaggregator: rule['aggregator'] = fallback['aggregator']
-	elif not callable(myaggregator) and myaggregator in aggregators:
-	  rule['aggregator'] = aggregators[myaggregator]
-	else:
-	    raise ValueError('''
-	      Rule %s aggregator attribute must be either callable or the name of an existing item in aggregators''' % rulename)
-      #end_section
+	    The userArgs argument must be a dict that contains only objects
+	    of type list,str,int,float, or unicode. You provided %s which is
+	    %s
+	    ''' % (vv,type(vv)))
+	  userArgsClean.update({kkclean:vvclean})
+	rule['userArgs'] = userArgsClean
+	rule['argsuffix'] = hshDctSorted(userArgsClean,4)
 
-      return rule
-    else: return None
+    # the long/shortname fields depend on rulesuffix and should trigger its rebuild also
+    if 'rulesuffix' in validateorfix:
+      # better but... maybe have separate suffix_rules and suffix_chosen checks... one
+      # will look in self.rules.items() and the other in self.chosen.items()
+      # if there are user arguments, base the suffix on those
+      myrulesuffix = rule.get('rulesuffix')
+      usedsuffixes = [vv['rulesuffix'] for kk,vv in self.rules.items() if kk!=rulename]
+      #usedsuffixes += [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk!=rulename]
+      rule['rulesuffix'] = makeTailUnq(ob2tag(myrulesuffix).lower()
+				,ref=set(usedsuffixes)
+				,sep='',maxlen=8)
+      if(rule['rulesuffix']!=myrulesuffix): print('''
+	Warning: in rule %s, the 'rulesuffix' argument was either missing or collided with
+	a rulesuffix for an existing rule.
+	''' % rulename)
+	
+    #end_section
+	
+    #section # always overwrite when applicable even if exists
+    
+    if 'longname' in validateorfix:
+      rule['longname'] = self.incolid + '_' + rule['rulesuffix']\
+	+ n2str(rule.get('argsuffix'))
+      
+    # since our *id fields depend on shortname, those should trigger its rebuild also
+    if 'shortname' in validateorfix:
+      rule['shortname'] = self.short_incolid + '_' + rule['rulesuffix']\
+	+ n2str(rule.get('argsuffix'))
+	
+    # for addRule
+    if 'addbid' in validateorfix: rule['addbid'] = 'ab-'+rule['shortname']
+    if 'selid' in validateorfix: rule['selid'] = 'sl-'+rule['shortname']
+    # for addChosen
+    if 'delbid' in validateorfix: rule['delbid'] = 'db-'+rule['shortname']
+    
+    #if not rule.get('criteria'): rule['criteria'] = fallback['criteria']
+    #end_section
+    
+    #section # syntax-only checks, no creation of compiled code
+    # ...but names of selectors can be inserted and compiled code is permitted
+    # if it already exists unless selector_stronly is set
+    if set(['selector_stronly','selector_checkonly']) & set(validateorfix):
+      myselector = rule.get('selector')
+
+      if not myselector: rule['selector'] = fallback['selector_stronly']
+
+      if type(myselector) == dict and \
+	len(set(['condition','rules']) & set(myselector.keys())) == 2:
+	myselector = qb2py(myselector)
+
+      if type(myselector) != str: 
+	if 'selector_stronly' in validateorfix: raise ValueError('''
+	  In rule %s the 'selector' argument may only be a string. Currently it is a %s :
+	  %s
+	  ''' % (rulename, type(myselector),myselector))
+	elif not callable(myselector): raise ValueError('''
+	  In rule %s the 'selector' argument needs to be valid python code. Currently it is:
+	  %s
+	  ''' % (rulename,myselector))
+	else: rule['selector'] = myselector
+      elif myselector not in selectors:
+	try: compile(myselector,'<string>','eval')
+	except: raise SyntaxError('''
+		Rule %s has a selector argument that is not valid python code: 
+		%s
+		''' % (rulename,myselector))
+	rule['selector'] = myselector
+	
+      
+    if 'aggregator_stronly' in validateorfix:
+      myaggregator = rule.get('aggregator')
+      if not myaggregator: rule['aggregator'] = fallback['aggregator_stronly']
+      elif type(myaggregator) != str: raise ValueError('''
+	Rule %s 'aggregator' argument must be a string
+	''' % rulename)
+      elif not myaggregator in aggregators: raise ValueError('''
+	Rule %s 'aggregator' argument must be one of the following:
+	%s''' % (rulename,aggregators.keys()))
+      else: pass
+      
+    #end_section
+    
+    
+    #section # needed for creating an outCol object
+    # TODO: don't create lambdas here, only code for the outCol.__init__ to compile into callables
+    if 'selector' in validateorfix:
+      myselector = rule.get('selector')
+      # The below is already  checked by selector_stronly
+      #if not myselector: rule['selector'] = fallback['selector']
+      #else:
+      if not callable(myselector):
+	if type(myselector) == str:
+	  if myselector in selectors:
+	    rule['selector'] = selectors[myselector]
+	  else: 
+	    # TODO: just compile it and let the outCol.__init__() call it
+	    rule['selector'] = eval('lambda cc=None,mc=None,ix=None,vt=None'+
+			      ',tc=None,nv=None,vf=None,qt=None,un=None'+
+			      ',lc=None,cf=None,**kwargs:'+myselector)
+	else: raise ValueError('''
+	  In rule %s the selector needs to be an str or a callable object
+	  ''' % rulename)
+    
+    if 'fieldlist' in validateorfix:
+      myfieldlist = rule.get('fieldlist')
+      if not myfieldlist: rule['fieldlist'] = fallback['fieldlist']
+      elif not type(myfieldlist) in [str,list]: 
+	raise ValueError('''
+	  Rule %s must have a list of character strings or the name of an existing field list in its fieldlist attribute
+	  ''' % rulename)
+      elif type(myfieldlist) == str and myfieldlist in fieldlists:
+	    rule['fieldlist'] = fieldlists[myfieldlist]
+      else:
+	if type(myfieldlist) == str: myfieldlist = [myfieldlist]
+	invalidfields = set(myfieldlist)-(i2b2fields)
+	if len(invalidfields)>0:
+	  raise ValueError('Rule %s fieldlist attribute references nonexistant fields %s' % (rulename,invalidfields))
+	else: rule['fieldlist'] = myfieldlist
+      
+    if 'aggregator' in validateorfix:
+      myaggregator = rule.get('aggregator')
+      if not myaggregator: rule['aggregator'] = fallback['aggregator']
+      elif not callable(myaggregator) and myaggregator in aggregators:
+	rule['aggregator'] = aggregators[myaggregator]
+      else:
+	  raise ValueError('''
+	    Rule %s aggregator attribute must be either callable or the name of an existing item in aggregators''' % rulename)
+    #end_section
+
+    return rule
   
   def updRules(self,rules=deepcopy(rules2),suggestions=None):
     '''Replace the current rules with subset of new ones that are valid 
@@ -1323,21 +1114,6 @@ class DFCol:
 	 # of course
 	 # Use assert to enforce userArgs being a dict
     assert type(userArgs) == dict,"prepChosen: userArgs is not a dict"
-    #userArgsClean = {}
-    #for kk,vv in userArgs.items():
-      #kkout = makeTailUnq(re.sub('[^A-Z]','',kk.upper())[:2]
-		    #,userArgsClean.keys(),sep='',pad=1,maxlen=2)
-      #try: userArgsClean.update({kkout:re.sub('[^\w:|_]','',str(vv))})
-      #except: import pdb; pdb.set_trace()
-      
-      #if type(userArgs) == dict:
-	#userArgsClean = [str(xx) for xx in userArgs.values()]
-      #elif type(userArgs) == list:
-	#userArgsClean = [str(xx) for xx in userArgs]
-      #else: raise ValueError('''
-	#The 'userArgs' argument must be either a list or a dict for prepChosen''')
-    #userArgsClean = [re.sub('[^\w:|_]','',xx) for xx in userArgsClean]
-    
     rule = self.valfixRule(rule,None,['longname','delbid','parent_name'
 				     ,'rulename','ruledesc','selector_stronly'
 				     ,'userinput','dividchosen'],userArgs=userArgs)
@@ -1348,16 +1124,6 @@ class DFCol:
 	       and vv['rulesuffix']==rule['rulesuffix']\
 		 and vv.get('argsuffix')==rule.get('argsuffix')]
     retFinal = retMatch if match else retChnew
-    # suffixes from items other than the match above
-    #othersuff = [vv['rulesuffix'] for kk,vv in self.chosen.items() if kk not in match]
-    #mysuffix = rule['rulesuffix']
-    ## Are there any suffix collisions?
-    #if mysuffix in othersuff:
-      ## If so, resolve them via makeTailUnq()
-      #rule['rulesuffix'] = makeTailUnq(mysuffix,ref=othersuff,sep='',maxlen=8)
-      ## rerun valfixRule() just to update the longname, delbid, and their dependencies
-      ## to reflect the now unique rulesuffix
-      #rule = self.valfixRule(rule,None,['longname','delbid'])
       ##TODO: re-confirm that rulename is still unique, maybe a while loop?
     if not match: match = [rule['longname']]
     self.chosen[match[0]] = rule
@@ -1370,8 +1136,6 @@ class DFCol:
   
   # builds or rebuilds the outcols
   def finalizeChosen(self,chsnames=[],chsrules={}):
-    #if type(chsnames) != list or type(chsrules) != dict:
-      #import pdb; pdb.set_trace()
     assert type(chsnames) == list,"finalizeChosen: chsnames is not a list"
     assert type(chsrules) == dict,"finalizeChosen: chsrules is not a dict"
     if self.as_is_col: self.outcols = [DFOutColAsIs(self)]
@@ -1382,8 +1146,11 @@ class DFCol:
 	  chsrules = {kk:vv for kk,vv in self.rules.items() if vv['suggested']}
       if not chsnames: chsnames = chsrules.keys()
       
-      self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
+      try :self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
 	+ [DFOutColAsIs(self)]
+      except:
+	print 'DFCol.finalizeChosen: cannot find rule'
+	import pdb; pdb.set_trace()
   
   def updChoices(self,choices):
     '''Get the user choices (extractors, names (?), and args) 
@@ -1392,6 +1159,8 @@ class DFCol:
   
   # return a flat list for each child object of the type specified and rules are specified
   # currently only 'chosen' and 'rules' values are supported/tested as values for childtype
+  # use case: get all the divIDchosen IDs:
+  # dfmeta.getColIDs(ids='divIDchosen')
   def getColIDs(self
     ,ids=['incolid','divIDavailable','divIDchosen','incoldesc','short_incolid','as_is_col']
   ,childids=[],childtype=None,asdicts=False
@@ -1496,6 +1265,17 @@ class DFCol:
       import pdb; pdb.set_trace()
     return out
     
+
+
+
+
+
+#######################################
+#######################################
+#  DFOutCol
+#######################################
+#######################################
+
 # TODO: DFOutColSkip
 class DFOutColAsIs:
   def __init__(self,parent,rule={},fldsep='/'):
@@ -1514,11 +1294,6 @@ class DFOutColAsIs:
     # ignores everything except rawcellval which it returns
     return rawcellval or ''
 
-#######################################
-#######################################
-#  DFOutCol
-#######################################
-#######################################
 class DFOutCol:
   def __init__(self,parent,rule,fldsep='/'):
     myrule = parent.valfixRule(rule=rule,rulename=None \
@@ -1560,69 +1335,17 @@ class DFOutCol:
 	if pn_changed or retval: self.retval_previous = retval
     return retval or ''
 
-def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
-  """
-  * datadict: ONE valid dict object (no JSON, no nulls)
-  * rules: a rules object, imported from rules.py by default
-  * recommendfield: either empty string or the name of a field to look for in rules
-  
-  returns a boolean list same length as rules
-  """
-  # eval the criterion field of each rule for datadict
-  out = [eval(xx.get('criteria','False'),datadict) for xx in rules];
-  # if recommendfield is not empty then also evaluate the that field and AND it with previous result
-  if(recommendfield != None and len(recommendfield)>0):
-    out = [all(yy) for yy in zip([
-      eval(xx.get(recommendfield,'False'),datadict) for xx in rules
-      ],out)];
-  return(out);
-  # return list
 
-def rulesselected(datadict,rules=rules,selected=[],*args, **kwargs):
-  """
-  * datadict: ONE valid dict object (no JSON, no nulls)
-  * rules: a rules object, imported from rules.py by default
-  * selected: a list of names or booleans (all the same type)
-  
-  returns a list containing at least one list (one for each output column). 
-  These inner lists each have 3 values in the following order: 
-  
-    1. extractor name (what extractor function xfieldj() should call)
-       Special values: 'as_is', 'skip'
-    2. header (what the output column should be named, or empty string)
-    3. value to place in the second row (metadata) 
-  """
-  # is selected empty? if so, run rulesvalidate and use that
-  if(selected == None or length(selected)==0): 
-    selected = rulesvalidate(datadict,rules,**kwargs);
-  # get types of selected argument
-  seltypes = [type(ii) for ii in selected];
-  # is selected all boolean? if so, check that it has same length as rules
-  if (all([ii == type(True) for ii in seltypes])):
-    if (len(selected)==len(rules)):
-      # if so, subset the rules accordingly
-      selrules = [jj for ii,jj in zip(selected,rules) if ii];
-    # but if length mismatch raise an error
-    else: raise ValueError("""
-      If 'selected' argument is boolean it must be the same length as the 'rules' argument
-      """);
-  # or is selected a list of all strings?
-  elif (all([ii == type(True) for ii in seltypes])):
-      # if so, select rules whose 'name' attributes match an item on the list
-      selrules = [ii for ii in rules if ii.get('name') in selected];
-  # if neither all-boolean nor all-string, error
-  else: raise ValueError("""
-    The 'selected' argument must be a list of all boolean or all string values.
-    If all boolean, it must be the same length as the 'rules' argument.
-    """);
-  # iterate over selrules and get the rulename and column name for each
-  outextr = []; outhead = [];
-  for xx in selrules:
-    outextr += [yy[0] for yy in xx['extractors']];
-    outhead += [yy[1].format(datadict['colid'],datadict['colcd']) for yy in xx['extractors']];
-  # return a tuple with outextr (extractor name) and outhead (column name)
-  # TODO: test and error if outhead is not unique
-  return outextr,outhead;
+
+
+
+
+
+#######################################
+#######################################
+#  old infocols code 
+#######################################
+#######################################
 
 def xmetaj(data,header,rules=rules,chosen=0):
   """
@@ -1751,6 +1474,226 @@ def xfieldj(data, field, transform=None, select=None, sep='; ', omitnull=True, a
   
 ### end JSON parsing ###
 #end_section json
+
+
+
+
+
+###############################################################################
+# Functions and methods to use within SQLite                                  #
+###############################################################################
+#section python_udf
+
+# aggregator useful for generating SQL
+class sqlaggregate:
+  def __init__(self):
+    self.lvals = []; self.rvals = []
+    self.lfuns = []; self.rfuns = []
+    self.ops = []; self.joiner = ','
+  def step(self,lval,rval,lfun,op,rfun,joiner):
+    if lval in ['','None',None]: lval = ' '
+    if rval in ['','None',None]: rval = ' '
+    if lfun in ['','None',None]: lfun = ' {0} '
+    if rfun in ['','None',None]: rfun = ' {0} '
+    if op in ['','None',None]: op = ' '
+    if joiner in ['','None',None]: self.joiner = ','
+    else: self.joiner = joiner
+    self.lvals.append(lval)
+    self.rvals.append(rval)
+    self.lfuns.append(lfun)
+    self.rfuns.append(rfun)
+    self.ops.append(op)
+  def finalize(self):
+    # turn into tuples
+    rawvals = zip(self.lfuns,self.lvals,self.ops,self.rfuns,self.rvals);
+    # payload
+    out = [str(xx[0]).format(str(xx[1]))+\
+      str(xx[2])+str(xx[3]).format(str(xx[4])) for xx in rawvals]
+    return self.joiner.join(out)
+
+# aggregation for diagnoses and similar data elements
+class diaggregate:
+  def __init__(self):
+    self.cons = {}
+    self.oocm = {}; self.ooc = []
+  def step(self,con,mod):
+    if con not in self.cons.keys():
+      self.cons[con] = [mod]
+    else:
+      if mod not in self.cons[con]:
+	self.cons[con].append(mod)
+  def finalize(self):
+    for ii in self.cons:
+      iimods = [jj for jj in self.cons[ii] if jj not in  ['@',None,'']]
+      if len(iimods) == 0:
+	self.ooc.append('"'+ii+'"')
+      else:
+	self.oocm[ii] = iimods
+    #oo += ['"'+ii+'":["'+'","'.join(self.cons[ii])+'"]' for ii in self.cons]
+    #oo = ",".join(oo)
+    return ",".join(self.ooc+['"'+ii+'":["'+'","'.join(self.oocm[ii])+'"]' for ii in self.oocm])
+  
+# generically jam together the ancillary fields to see if there is anything 
+# noteworthy anywhere in there note that normally you would use NULL or '' for 
+# some of these params (to bypass them), doing the aggregation only on the ones 
+# you don't expect to see
+class infoaggregate:
+  def __init__(self):
+    self.cons = {}
+  def step(self,con,mod,ins,vtp,tvc,nvn,vfl,qty,unt,loc,cnf):
+    self.ofvars = {'cc':str(con),'mc':str(mod),'ix':str(ins),'vt':str(vtp),'tc':str(tvc),'vf':str(vfl),'qt':str(qty),'un':str(unt),'lc':str(loc),'cf':str(cnf)}
+    # go through each possible arg, check if it's NULL/@/''
+    # if not, add to self.cons
+    if nvn not in ['@','None',None,'']:
+      if 'nv' not in self.cons.keys():
+	self.cons['nv'] = 1
+      else:
+	self.cons['nv'] += 1
+    for ii in self.ofvars:
+      if self.ofvars[ii] not in ['@','None',None,'']:
+	if ii not in self.cons.keys():
+	  self.cons[ii] = [self.ofvars[ii]]
+	elif self.ofvars[ii] not in self.cons[ii]:
+	  self.cons[ii] += [self.ofvars[ii]]
+  def finalize(self):
+    # oh... python's dictionary format looks just like JSON, and you can convert it to a string
+    # the replace calls are just to make it a little more compact
+    if 'nv' in self.cons.keys():
+      if self.cons['nv']==1:
+	del self.cons['nv']
+      else:
+	self.cons['nv'] = str(self.cons['nv'])
+    if 'ix' in self.cons.keys():
+      if len(self.cons['ix']) == 1:
+      #if self.cons['ix'] == ['1']:
+	del self.cons['ix']
+    return (str(self.cons)[1:-1]).replace("', '","','").replace(": ",":")
+
+# Packs a set of rows from i2b2 concept_dimension into a JSON object (string)
+class jsonaggregate:
+  def __init__(self):
+    self.entries = {}
+  def step(self,st,cc,mc,ix,vt,tc,nv,vf,qt,un,lc,cf):
+    fields = vars()
+    self.entries[len(self.entries)] = ({
+      xx: fields.get(xx,None) if fields.get(xx,None) not in ['@',None,'','None'] else None 
+      for xx in ('st','cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf')})
+  def finalize(self):
+    self.entries['count'] = len(self.entries)
+    #import pdb; 
+    #if(self.entries['count']>1): pdb.set_trace();
+    return json.dumps(self.entries)
+
+# this is the kitchen-sink aggregator-- doesn't really condense the data, 
+# rather the purpose is to preserve everything there is to be known about 
+# each OBSERVATION_FACT entry while still complying with the 
+# one-row-per-patient-date requirement
+class debugaggregate:
+  def __init__(self):
+    self.entries = []
+  def step(self,cc,mc,ix,vt,tc,nv,vf,qt,un,lc,cf):
+    foo = vars()
+    bar = {xx: foo.get(xx,None) if foo.get(xx,None) not in ['@',None,'','None'] else None for xx in ('cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf')}
+    import pdb; pdb.set_trace();
+    self.entries.append(",".join(['"'+ii+'":"'+str(vars()[ii])+'"' for ii in ['cc','mc','ix','vt','tc','nv','vf','qt','un','lc','cf'] if vars()[ii] not in ['@',None,'','None']]))
+  def finalize(self):
+    return "{"+"},{".join(self.entries)+"}"
+
+# trim and concatenate together strings, e.g. to make column names 
+def trimcat(*args): return ''.join([ii.strip() for ii in args])
+  
+# from the template in the first argument ({0},{1}, etc.)
+# and the replacement variables in the second, put together a string
+# useful for generating SQL 
+def pyformat(string,*args): return string.format(*args)
+
+# this is to register a SQLite function for pulling out matching substrings 
+# (if found) and otherwise returning the original string. Useful for extracting 
+# ICD9, CPT, and LOINC codes from concept paths where they are embedded. For 
+# ICD9 the magic pattern is:
+# '.*\\\\([VE0-9]{3}\.{0,1}[0-9]{0,2})\\\\.*'
+# Returns last match or original text if no match
+def ifgrp(pattern,txt):
+    #rs = re.search(re.compile(pattern),txt)
+    rs = re.findall(re.compile(pattern),txt)
+    if len(rs):
+      rs = rs[-1]
+      if isinstance(rs,tuple): return rs[0]
+      else: return rs
+    else:
+      return txt 
+    #else:
+    #  return rs.group(1)
+    
+def subgrp(pattern,rep,txt):
+  return re.sub(pattern,str(rep),str(txt))
+
+# The rdt and rdst functions aren't exactly user-defined SQLite functions...
+# They are python functions that emit a string to concatenate into a larger SQL query
+# and send back to SQL... because SQLite has a native julianday() function that's super
+# easy to use. So, think of rdt and rdst as pseudo-UDFs
+def rdt(datecol,factor):
+    if factor == 1:
+      return 'date('+datecol+')'
+    else:
+      factor = str(factor)
+      return 'date(round(julianday('+datecol+')/'+factor+')*'+factor+')'
+    
+# this one is a wrapper for rdt but with 'start_date' hardcoded as first arg
+# because it occurrs so often
+def rdst(factor):
+    return rdt('start_date',factor)
+
+# Next two are more pseudo-UDFs, that may at some point be used by dd.sql
+def dfctday(**kwargs):                                          
+  if kwargs is not None:
+    oo = "replace(group_concat(distinct '{'||"
+    for key,val in kwargs.iteritems():
+      oo += """coalesce('{0}:"'||{1}||'",','')||""".format(key,val)
+    oo += "'}'),',}','}')"                                             
+    return oo
+  
+def dfctcode(**kwargs):
+   if kwargs is not None:
+     oo = ""
+     for key,val in kwargs.iteritems():
+       oo += """coalesce('{0}:['||group_concat(distinct '"'||{1}||'"')||'],','')||""".format(key,val)
+     return oo[:-2].replace('],',']')
+
+# Omit "least relevant" words to make a character string shorter
+def shortenwords(words,limit):
+  """ Initialize the data, lengths, and indexes"""
+  #get rid of the numeric codes
+  words = re.sub('[0-9]','',words)
+  wrds = words.split(); lens = map(len,wrds); idxs=range(len(lens))
+  if limit >= len(words):
+    return(words)
+  """ sort the indexes and lengths"""
+  idxs.sort(key=lambda xx: lens[xx]); lens.sort()
+  """ initialize the threshold and the vector of 'most important' words"""
+  sumidx=0; keep=[]
+  # turned out that checking the lengths of the lens and idxs is what it takes to avoid crashes
+  while sumidx < limit and len(lens) > 0 and len(idxs) > 0:
+    sumidx += lens.pop()
+    keep.append(idxs.pop())
+  keep.sort()
+  shortened = [wrds[ii] for ii in keep]
+  return " ".join(shortened)
+
+# This function shortens words by squeezing out vowels, most non-alphas, and 
+# repeating letters the first regexp replaces multiple ocurrences of the same 
+# letter with one ocurrence of that letter the \B matches a word boundary... 
+# so we only remove vowels from inside words, not leading lettters
+def dropletters(intext):
+  return re.sub(r"([a-z_ ])\1",r"\1",re.sub("\B[aeiouyAEIOUY]+","",re.sub("[^a-zA-Z _]"," ", intext)))
+
+#end_section python_udf
+
+
+
+
+
+
 
 def logged_execute(cnx, statement, comment=''):
     if dolog:
@@ -1922,5 +1865,71 @@ def create_ruledef(cnx, filename):
     #if suggestions != None: self.updSuggestions(suggestions)
     #return self
     # initialize the 'suggested' attribute to 'False'
+
+'''
+def rulesvalidate(datadict,rules=rules,recommendfield='recommend',*args, **kwargs):
+  """
+  * datadict: ONE valid dict object (no JSON, no nulls)
+  * rules: a rules object, imported from rules.py by default
+  * recommendfield: either empty string or the name of a field to look for in rules
+  
+  returns a boolean list same length as rules
+  """
+  # eval the criterion field of each rule for datadict
+  out = [eval(xx.get('criteria','False'),datadict) for xx in rules];
+  # if recommendfield is not empty then also evaluate the that field and AND it with previous result
+  if(recommendfield != None and len(recommendfield)>0):
+    out = [all(yy) for yy in zip([
+      eval(xx.get(recommendfield,'False'),datadict) for xx in rules
+      ],out)];
+  return(out);
+  # return list
+
+def rulesselected(datadict,rules=rules,selected=[],*args, **kwargs):
+  """
+  * datadict: ONE valid dict object (no JSON, no nulls)
+  * rules: a rules object, imported from rules.py by default
+  * selected: a list of names or booleans (all the same type)
+  
+  returns a list containing at least one list (one for each output column). 
+  These inner lists each have 3 values in the following order: 
+  
+    1. extractor name (what extractor function xfieldj() should call)
+       Special values: 'as_is', 'skip'
+    2. header (what the output column should be named, or empty string)
+    3. value to place in the second row (metadata) 
+  """
+  # is selected empty? if so, run rulesvalidate and use that
+  if(selected == None or length(selected)==0): 
+    selected = rulesvalidate(datadict,rules,**kwargs);
+  # get types of selected argument
+  seltypes = [type(ii) for ii in selected];
+  # is selected all boolean? if so, check that it has same length as rules
+  if (all([ii == type(True) for ii in seltypes])):
+    if (len(selected)==len(rules)):
+      # if so, subset the rules accordingly
+      selrules = [jj for ii,jj in zip(selected,rules) if ii];
+    # but if length mismatch raise an error
+    else: raise ValueError("""
+      If 'selected' argument is boolean it must be the same length as the 'rules' argument
+      """);
+  # or is selected a list of all strings?
+  elif (all([ii == type(True) for ii in seltypes])):
+      # if so, select rules whose 'name' attributes match an item on the list
+      selrules = [ii for ii in rules if ii.get('name') in selected];
+  # if neither all-boolean nor all-string, error
+  else: raise ValueError("""
+    The 'selected' argument must be a list of all boolean or all string values.
+    If all boolean, it must be the same length as the 'rules' argument.
+    """);
+  # iterate over selrules and get the rulename and column name for each
+  outextr = []; outhead = [];
+  for xx in selrules:
+    outextr += [yy[0] for yy in xx['extractors']];
+    outhead += [yy[1].format(datadict['colid'],datadict['colcd']) for yy in xx['extractors']];
+  # return a tuple with outextr (extractor name) and outhead (column name)
+  # TODO: test and error if outhead is not unique
+  return outextr,outhead;
+'''
 
 #end_section #deadcode
