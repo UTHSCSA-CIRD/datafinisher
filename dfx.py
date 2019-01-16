@@ -178,6 +178,19 @@ if __name__ == '__main__':
       dfm = DFMeta('../www/demodata.csv'
 	#,testheader,testmeta
 	,suggestions=autosuggestor)
+      
+      # comparison of two different methods of dfmeta creation
+      dfm1 = DFMeta('exampleinput.db')
+      dfm0 = DFMeta('exampleinput.csv')
+      try:
+	# only needed for testing, not intended to be part of this package
+	from deepdiff import DeepDiff
+	dfmDiff = DeepDiff(dfm0,dfm1)
+	if dfmDiff: print '''
+	Have a look at dfmDiff, something is different between dfm0 (csv input)
+	and dfm1 (db input but identical data)'''
+      except: pass
+    
       try: dfc = dfm.incols['v113_RDW_RBC_At_Rt'] #['v036_CS_Mts_at_DX']
       except: dfc = dfm.incols['v006_Hrt_Rt_LNC']
       colids=dfc.getColIDs(childids=['selid','addbid','shortname','longname','ruledesc','parent_name']
@@ -217,7 +230,8 @@ if __name__ == '__main__':
 					#,['v121_mlgnt_nplsm','v011_unspcfd_mlgnt'])
       testDelim10 = handleDelimFile('tenlines.csv')
       testDelim3 = handleDelimFile('threelines.csv')
-      testDelimZ = handleDelimFile('df.py')
+      try: testDelimZ = handleDelimFile('df.py')
+      except Exception,ee: print ee
       testDelimX = handleDelimFile('threeFOO.csv')
       # test a representative row of data
       dfm.fhandle.seek(88271,0)
