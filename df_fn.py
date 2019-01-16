@@ -1150,11 +1150,11 @@ class DFCol:
 	  chsrules = {kk:vv for kk,vv in self.rules.items() if vv['suggested']}
       if not chsnames: chsnames = chsrules.keys()
       
-      try :self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
+      self.outcols = [DFOutCol(self,chsrules[ii]) for ii in chsnames]\
 	+ [DFOutColAsIs(self)]
-      except:
-	print 'DFCol.finalizeChosen: cannot find rule'
-	import pdb; pdb.set_trace()
+      #except:
+	#print 'DFCol.finalizeChosen: cannot find rule'
+	#import pdb; pdb.set_trace()
   
   def updChoices(self,choices):
     '''Get the user choices (extractors, names (?), and args) 
