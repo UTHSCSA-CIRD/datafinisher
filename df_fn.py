@@ -64,6 +64,10 @@ def handleDelimFile(fref,mode='r',buffering=-1,dlc=None
     except Exception,ee: 
       Warning('(skipping, cannot read file) '+str(ee))
       return nullReturn
+    # could it be a sqlite file?
+    if re.search('\.db$',fref.name):
+      from df import db2df
+      fref = db2df(db=fref.name)
     
   if type(fref) == file:
     # can you read it via csv.Sniffer and get a non ' ' delim?
