@@ -462,7 +462,7 @@ class DFMeta:
     return makeTailUnq(namein,inuse,sep=sep,maxlen=maxlen
 		       ,*args,**kwargs)
   
-  def getHeaders(self,bycol=False,cols=None,func='getHeader',*args,**kwargs):
+  def getHeaders(self,bycol=True,cols=None,func='getHeader',*args,**kwargs):
     '''For each of the incols, do foo.getHeader() with the above arguments
     and in addition whatever the current value of suggestPolicy is
     
@@ -482,7 +482,7 @@ class DFMeta:
       for ii in cols: out.extend(self.incols[ii][func]())
       return out
   
-  def getMetas(self,bycol=False,cols=None,func='getMeta',*args,**kwargs):
+  def getMetas(self,bycol=True,cols=None,func='getMeta',*args,**kwargs):
     return self.getHeaders(bycol=bycol,cols=cols,func=func,*args,**kwargs)
   
   def sampleInput(self,reset=True,nrows=1000,restoreoffset=False):
