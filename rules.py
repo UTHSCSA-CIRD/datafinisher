@@ -197,7 +197,8 @@ aggregators = {
   ,'any': any
   ,'mean': lambda xx,**kw: sum(xx)/len(xx)
   ,'median': lambda xx,**kw: sorted(xx)[len(xx)/2]
-  ,'concatunique': lambda xx,sep=';',**kw: sep.join([str(ii) for ii in xx])
+  ,'concatunique': lambda xx,sep=';',**kw: sep.join([str(ii)\
+    for ii in set(xx)])
 }
 
 rules = [
