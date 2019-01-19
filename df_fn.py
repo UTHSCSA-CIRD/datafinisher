@@ -572,7 +572,7 @@ class DFMeta:
     what you're getting into.'''
     
     ''' Set the row pointer if needed '''
-    if offset and infh in dir(): infh.seek(offset)
+    if offset and 'infh' in dir(): infh.seek(offset)
     
     if chosenCols: 
       assert type(chosenCols) == dict,'''
