@@ -1329,7 +1329,7 @@ class DFOutCol:
 	  if self.selector(**iiargs):
 	    out += [self.fldsep.join([str(n2str(cellval[str(ii)].get(kk)))\
 	      for kk in self.fieldlist])]
-	retval = self.aggregator(out) if out or ''
+	retval = self.aggregator(out) if out else ''
       except Exception, ee:
 	# error code 200 = error in individual outcol
 	retval = log(200,str(ee),outcol=self.outcolid) if log else str(ee)
