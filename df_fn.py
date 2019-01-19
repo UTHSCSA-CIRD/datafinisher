@@ -1142,6 +1142,7 @@ class DFCol:
   def finalizeChosen(self,chsnames=[],chsrules={}):
     assert type(chsnames) == list,"finalizeChosen: chsnames is not a list"
     assert type(chsrules) == dict,"finalizeChosen: chsrules is not a dict"
+    import pdb; pdb.set_trace()
     if self.as_is_col: self.outcols = [DFOutColAsIs(self)]
     else:
       if not chsrules: 
@@ -1328,7 +1329,7 @@ class DFOutCol:
 	  if self.selector(**iiargs):
 	    out += [self.fldsep.join([str(n2str(cellval[str(ii)].get(kk)))\
 	      for kk in self.fieldlist])]
-	retval = self.aggregator(out) or ''
+	retval = self.aggregator(out) if out or ''
       except Exception, ee:
 	# error code 200 = error in individual outcol
 	retval = log(200,str(ee),outcol=self.outcolid) if log else str(ee)
