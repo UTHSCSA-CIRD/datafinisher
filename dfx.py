@@ -241,6 +241,14 @@ if __name__ == '__main__':
       testfout.writerow(dfm.getMetas())
       dfm.fhandle.seek(dfm.ofsdata)
       while dfm.nrows <= 2003: testfout.writerow(dfm.processRow(dfm.data.next()))
+      
+      cell_returns_no=json.loads('{"0": {"ix": 987654321, "vf": null, "mc": null, "cc": "788-0", "cf": null, "lc": "12345", "st": "2005-05-05", "un": "PERCENT", "vt": null, "tc": null, "nv": 14.6, "qt": 0}, "count": 1}')
+      
+      cell_returns_yes=json.loads('{"0": {"ix": 987654321, "vf": null, "mc": null, "cc": "KUH|COMPONENT_ID:5629", "cf": null, "lc": "12345", "st": "2005-05-05", "un": "PERCENT", "vt": null, "tc": null, "nv": 14.6, "qt": 0}, "count": 1}')
+
+      usr_args_rule={'suggested': False, 'parent_name': u'v113_RDW_RBC_At_Rt', 'selid': 'sl-v113_lnc', 'delbid': u'db-v113_lnce714', 'aggregator': 'last', 'args': 'CC', 'addbid': 'ab-v113_lnc', 'split_by_code': True, 'userArgs': {'CC': 'KUH|COMPONENT_ID:5629'}, 'selector': 'codeIn_CC', 'rulesuffix': 'lnc', 'fieldlist': 'nv', 'argsuffix': 'e714', 'criteria': 'nval_num > 0 and ccd > 1', 'rulename': 'last_numeric_fltrcode', 'shortname': u'v113_lnce714', 'longname': u'v113_RDW_RBC_At_Rt_lnce714', 'ruledesc': 'Last numeric value of the specified code for each visit.', 'divIDchosen': u'c-v113'}
+      
+      
       #bat = {'v006_Mlgnt_nplsm':["v006_cd","v006_tf"]}
       #dfm.finalizeChosen(bat)
       import pdb; pdb.set_trace()
