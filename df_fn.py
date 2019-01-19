@@ -1142,7 +1142,6 @@ class DFCol:
   def finalizeChosen(self,chsnames=[],chsrules={}):
     assert type(chsnames) == list,"finalizeChosen: chsnames is not a list"
     assert type(chsrules) == dict,"finalizeChosen: chsrules is not a dict"
-    import pdb; pdb.set_trace()
     if self.as_is_col: self.outcols = [DFOutColAsIs(self)]
     else:
       if not chsrules: 
