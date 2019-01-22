@@ -782,7 +782,7 @@ class DFCol:
 			   if isinstance(colmeta,dict) else colmeta
 			   ,'ruledesc':''})
       if self.as_is_col:
-	self.incoldesc = 'This is a static column that will be preserved as-is'
+	self.incoldesc = 'Static column that will be preserved as-is'
 	self.short_incolid = self.incolid
       else:
 	self.incoldesc = self.colmeta['name']
