@@ -1,6 +1,6 @@
 # test
 test_dumpcols.json
-testinput.py
+testinput_big.py
 # data and cached
 *.db
 \#*\#
