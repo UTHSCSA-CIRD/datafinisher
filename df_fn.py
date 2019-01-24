@@ -1326,7 +1326,8 @@ class DFOutCol:
 	  iiargs = {}; iiargs.update(self.userArgs)
 	  iiargs.update(cellval[str(ii)])
 	  if self.selector(**iiargs):
-	    out += [self.fldsep.join([str(n2str(cellval[str(ii)].get(kk)))\
+	    if(len(self.fieldlist)==1): out += [iiargs.get(self.fieldlist[0])]
+	    else: out += [self.fldsep.join([str(n2str(iiargs.get(kk)))\
 	      for kk in self.fieldlist])]
 	retval = self.aggregator(out) if out else ''
       except Exception, ee:
