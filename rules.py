@@ -145,7 +145,24 @@ qbfilterlist = {
       }
 } 
 
-def n2str(xx): '' if not xx else xx
+# oneliners that are missing from python!!
+
+# https://stackoverflow.com/a/46516776
+def try_or(fn, default,*args,**kwargs):
+    try: return fn(*args,**kwargs)
+    except: return default
+
+def ltry_or(fn,lst,default=None,drop=True,*args,**kwargs):
+  return [yy for yy in [try_or(fn,default,yy,*args,**kwargs)
+			for yy in lst] if not drop or yy]
+# convert a list to floats if possible and Nones if not
+# If drop=True, the Nones are excluded from final result
+def ltryfloat(xx,drop=True): return ltry_or(float,xx,drop=drop)
+#def ltryfloat(xx,drop=True):
+  #return [yy for yy in [try_or(float,None,yy) for yy in xx]
+	  #if not drop or yy]
+
+def n2str(xx): return '' if not xx else xx
 
 pyops = {
   # note-- unlike contains, here val is a list, not a string
@@ -177,6 +194,7 @@ selectors = {
   ,'codeIn_CC': lambda cc,CC,**kwargs: cc in CC if cc else False
   ,'inactivDiag': lambda mc,**kwargs: mc in ['DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2'] if mc else False
   ,'activeDiag': lambda mc,**kwargs: mc not in ['DiagObs:MEDICAL_HX','PROBLEM_STATUS_C:3','PROBLEM_STATUS_C:2'] if mc else False
+  ,'hasNV': lambda nv,**kwargs: nv or False
 }
 
 # these are just fields to extract for each selected item
@@ -195,11 +213,12 @@ aggregators = {
   ,'min': min
   ,'max': max
   ,'any': any
-  ,'mean': lambda xx,**kw: sum(xx)/len(xx)
-  ,'median': lambda xx,**kw: sorted(xx)[len(xx)/2]
+  ,'mean': lambda xx,**kw: sum(ltryfloat(xx))/len(xx)
+  ,'median': lambda xx,**kw: (sum(ltryfloat(xx))/len(xx)) if len(xx)<= 2 else (sorted(ltryfloat(xx))[(len(xx)-1)//2] if (len(xx) % 2) else ((sorted(ltryfloat(xx))[(len(xx)-1)//2])+(sorted(ltryfloat(xx))[(len(xx)+1)//2]))/2.0)
   ,'concatunique': lambda xx,sep=';',**kw: sep.join([str(ii)\
     for ii in set(xx)])
 }
+
 
 # the following should be unique: rulesuffix, name of each rule
 # if split_by_code there must be a {1} in the rulesuffix and args must have at least one value
@@ -226,6 +245,16 @@ rules = {
     # ignore these unless split_by_code is True
     ,"args": []
     }
+  ,'med_numeric':{
+     'ruledesc':'''Median numeric value for each visit'''
+    ,"criteria":"nval_num > 0"
+    ,"split_by_code": False
+    ,"selector": 'hasNV'
+    ,"fieldlist": ['nv']
+    ,"aggregator": 'median'
+    ,"rulesuffix": 'mn'
+    ,"args": []
+  }
   ,'diag_active': {
     'ruledesc':'''
       Active diagnosis: all distinct combinations of diagnosis codes and 
@@ -239,16 +268,16 @@ rules = {
     ,"rulesuffix": 'dx'
     ,"args": []
   }
-  ,'last_numeric_fltrcode':{
+  ,'med_numeric_fltrcode':{
     'ruledesc':'''Last numeric value of the specified code for each visit.'''
     # TODO: add whatever the variable where the number of distinct concept cds is stored
     ,"criteria": "nval_num > 0 and ccd > 1"
     ,"split_by_code": True
-    #,"extractors":[["last_numeric","{0}_last_num_cd",{}]]
+    # TODO: allow lists of selectors
     ,"selector": 'codeIn_CC'
     ,"fieldlist": ['nv']
-    ,"aggregator": 'last'
-    ,"rulesuffix": 'lnc'
+    ,"aggregator": 'median'
+    ,"rulesuffix": 'mnc'
     ,"args": ['CC']
     }
   ,'true_false': { 
@@ -303,7 +332,7 @@ rules have already been suggested for this column
 '''
 autosuggestor = [
    {'diag_active': "any([xx in ddomain.lower() for xx in ['icd9','icd10','dx_id']])"}
-  ,{'last_numeric': 'ccd==1 and noutputs==0'}
+  ,{'med_numeric': 'ccd==1 and noutputs==0'}
   #,{'median_multicol': 'ccd>1 & noutputs==0'}
   ,{'true_false': 'ccd==1 and noutputs==0'}
   ,{'concat_unique': 'noutputs==0'}
