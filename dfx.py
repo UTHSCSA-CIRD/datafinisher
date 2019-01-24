@@ -174,7 +174,7 @@ if __name__ == '__main__':
     #  outfile = "data_"+args.csvin
     if path.isfile('testinput.py'):
       from testinput import testheader,testmeta,testqb #,testUserRule
-      from rules import rules2
+      from rules import rules
       dfm = DFMeta('../www/demodata.csv'
 	#,testheader,testmeta
 	,suggestions=autosuggestor)

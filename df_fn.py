@@ -18,7 +18,7 @@ dolog = False
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
 # each pattern
-from rules import rules,rules2,autosuggestor,aggregators,fieldlists,selectors
+from rules import rules,autosuggestor,aggregators,fieldlists,selectors
 from rules import rules_fallback,i2b2fields,qbfilterlist,pyops
 
 # useful listsp
@@ -274,7 +274,7 @@ class DFMeta:
   Future plans: allow the first argument to be a file-handle
   '''
   def __init__(self,fref=None,inhead=None,inmeta=None,suggestPolicy='auto'
-	       ,rules=deepcopy(rules2),suggestions=None
+	       ,rules=deepcopy(rules),suggestions=None
 	       ,patient_num='patient_num',visit_day='age_at_visit_days'
 	       ,mode='r',buffering=-1,dlc=None,minlen=4,sample=1024
   ):
@@ -705,7 +705,7 @@ class DFMeta:
 # Not yet used, but might be simpler to use it instead of lots of if statements
 # in DFCol.__init__()
 class DFColStatic:
-  def __init__(self,colmeta,colname,rules=deepcopy(rules2),suggestions=None
+  def __init__(self,colmeta,colname,rules=deepcopy(rules),suggestions=None
 	       ,as_is_col = False
   ):
     self.colmeta = colmeta; self.incolid = colname; self.as_is_col = as_is_col;
@@ -754,7 +754,7 @@ class DFColStatic:
 class DFCol:
   ''' Everything this column needs to know should be contained in the colmeta
   '''
-  def __init__(self,colmeta,colname,rules=deepcopy(rules2),suggestions=None
+  def __init__(self,colmeta,colname,rules=deepcopy(rules),suggestions=None
 	       ,as_is_col = False,parent=None
   ):
     self.colmeta = colmeta; self.incolid = colname; self.as_is_col = as_is_col;
@@ -1038,7 +1038,7 @@ class DFCol:
 
     return rule
   
-  def updRules(self,rules=deepcopy(rules2),suggestions=None):
+  def updRules(self,rules=deepcopy(rules),suggestions=None):
     '''Replace the current rules with subset of new ones that are valid 
     for this columnn based on their built-in validity checks and colmeta
     

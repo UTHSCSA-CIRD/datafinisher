@@ -201,34 +201,9 @@ aggregators = {
     for ii in set(xx)])
 }
 
-rules = [
-   { # if this column has any numeric values return the last for each visit
-     "name": "last_numeric"
-     # The criteria will be executed by eval() in the context of the JSON 
-     # metadata that ultimately originates from the df_dtdict
-     ,"criteria":"nval_num > 0"
-     # first value: name of extractor function, 
-     # second value: template for naming column
-     ,"extractors":[["last_numeric","{0}.last.num"]]
-   }
-
-  ,{ # if this column consists of only NULL and one other value
-     "name": "true_false"
-    ,"criteria": 'True' #"ccd <= 1" # later, check for > 1 unique concept|mod per visit
-    ,"extractors":[["true_false","{0}.tf"]]
-   }
-
-  ,{ # if this column has codes (and really anything else)
-     "name": "concat_unique"
-    ,"criteria":"True"
-    ,"extractors":[["concat_unique","{0}.values"]]
-   }
-
-]
-
 # the following should be unique: rulesuffix, name of each rule
 # if split_by_code there must be a {1} in the rulesuffix and args must have at least one value
-rules2 = {
+rules = {
    'last_numeric': { 
      'ruledesc':'''Last numeric value for each visit'''
       # The criteria will be executed by eval() in the context of the JSON 
@@ -251,6 +226,19 @@ rules2 = {
     # ignore these unless split_by_code is True
     ,"args": []
     }
+  ,'diag_active': {
+    'ruledesc':'''
+      Active diagnosis: all distinct combinations of diagnosis codes and 
+      modifiers from this group recorded during a visit except history and 
+      those marked as resolved or deleted'''
+    ,"criteria":"any([xx in ddomain.lower() for xx in ['icd9','icd10','dx_id']])"
+    ,"split_by_code":False
+    ,"selector":'activeDiag'
+    ,"fieldlist": 'codemod'
+    ,"aggregator": 'concatunique'
+    ,"rulesuffix": 'dx'
+    ,"args": []
+  }
   ,'last_numeric_fltrcode':{
     'ruledesc':'''Last numeric value of the specified code for each visit.'''
     # TODO: add whatever the variable where the number of distinct concept cds is stored
@@ -314,7 +302,8 @@ noutputs is going to be a variable that tracks how many previous
 rules have already been suggested for this column
 '''
 autosuggestor = [
-   {'last_numeric': 'ccd==1 and noutputs==0'}
+   {'diag_active': "any([xx in ddomain.lower() for xx in ['icd9','icd10','dx_id']])"}
+  ,{'last_numeric': 'ccd==1 and noutputs==0'}
   #,{'median_multicol': 'ccd>1 & noutputs==0'}
   ,{'true_false': 'ccd==1 and noutputs==0'}
   ,{'concat_unique': 'noutputs==0'}
