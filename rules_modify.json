@@ -1,0 +1,77 @@
+# THIS FILE SHOULD ONLY BE EDITED BY PERSONNEL AUTHORIZED TO ACCESS THE 
+# SYSTEM AND ITS DATA WITH AT LEAST THE SAME PRIVILEGES AS THE DataFinisher 
+# APP ITSELF!
+# 
+
+{
+ "true_false": {
+  "rulesuffix": "tf", 
+  "fieldlist": "all", 
+  "args": [], 
+  "criteria": "True", 
+  "aggregator": "any", 
+  "selector": "ALL", 
+  "ruledesc": "True if occurred during visit, otherwise false.", 
+  "split_by_code": false
+ }, 
+ "med_numeric": {
+  "rulesuffix": "mn", 
+  "fieldlist": [
+   "nv"
+  ], 
+  "args": [], 
+  "criteria": "nval_num > 0", 
+  "aggregator": "median", 
+  "selector": "hasNV", 
+  "ruledesc": "Median numeric value for each visit", 
+  "split_by_code": false
+ }, 
+ "diag_active": {
+  "rulesuffix": "dx", 
+  "fieldlist": "codemod", 
+  "args": [], 
+  "criteria": "any([xx in ddomain.lower() for xx in ['icd9','icd10','dx_id']])", 
+  "aggregator": "concatunique", 
+  "selector": "activeDiag", 
+  "ruledesc": "\n      Active diagnosis: all distinct combinations of diagnosis codes and \n      modifiers from this group recorded during a visit except history and \n      those marked as resolved or deleted", 
+  "split_by_code": false
+ }, 
+ "concat_unique": {
+  "rulesuffix": "cd", 
+  "fieldlist": [
+   "cc"
+  ], 
+  "args": [], 
+  "criteria": "True", 
+  "aggregator": "concatunique", 
+  "selector": "ALL", 
+  "ruledesc": "All unique codes that correspond to this variable recorded during visit.", 
+  "split_by_code": false
+ }, 
+ "med_numeric_fltrcode": {
+  "rulesuffix": "mnc", 
+  "fieldlist": [
+   "nv"
+  ], 
+  "args": [
+   "CC"
+  ], 
+  "criteria": "nval_num > 0 and ccd > 1", 
+  "aggregator": "median", 
+  "selector": "codeIn_CC", 
+  "ruledesc": "Last numeric value of the specified code for each visit.", 
+  "split_by_code": true
+ }, 
+ "last_numeric": {
+  "rulesuffix": "ln", 
+  "fieldlist": [
+   "nv"
+  ], 
+  "args": [], 
+  "criteria": "nval_num > 0", 
+  "aggregator": "last", 
+  "selector": "ALL", 
+  "ruledesc": "Last numeric value for each visit", 
+  "split_by_code": false
+ }
+}
