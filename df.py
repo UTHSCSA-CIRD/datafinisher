@@ -284,26 +284,26 @@ def main(cnx,fname,style,dtcp,mincnt):
     tprint("created df_dynsql table",tt);tt = time.time()
     #end_section dynsql
     
-    #section dynsql_experimental
-    '''not sure it's an improvement, but here is using the sqgr function nested in itself 
-    to create the equivalent of the df_dynsql table 
-    (note the kludgy replace and || stuff, needs to be done better)
-    the body of the query'''
+    ##section dynsql_experimental
+    #'''not sure it's an improvement, but here is using the sqgr function nested in itself 
+    #to create the equivalent of the df_dynsql table 
+    #(note the kludgy replace and || stuff, needs to be done better)
+    #the body of the query'''
     
-    foo = cnx.execute("select sqgr(lv,rv,lf,' ',rf,' ') from (select sub_slct_std||sqgr(trim(colcd)||trim(presuffix)||trim(suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr lf,colcd lv,replace(sub_grp_std,'jcode',0) rf,trim(colcd)||trim(presuffix) rv from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping)").fetchall()
-    # or maybe even
-    foo1 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr||replace(sub_grp_std,'jcode',1) ,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
-    # doesn't currently work, but will when we replace the {} stuff permanently
-    """
-    foo2 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',sub_payload,'','','')||sub_frm_std||sbwr||sub_grp_std,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
-    """
-    # the select part of the query
-    bar = cnx.execute("select group_concat(val) from (select distinct trim(colcd)||trim(presuffix)||trim(suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()
-    # or maybe even
-    bar1=cnx.execute("select group_concat(val) from (select distinct tc(colcd,presuffix,suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()[0][0]
-    # putting them together...
-    "select patient_num,start_date, "+bar[0][0]+" from df_joinme "+foo[0][0]
-    #end_section dynsql_experimental
+    #foo = cnx.execute("select sqgr(lv,rv,lf,' ',rf,' ') from (select sub_slct_std||sqgr(trim(colcd)||trim(presuffix)||trim(suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr lf,colcd lv,replace(sub_grp_std,'jcode',0) rf,trim(colcd)||trim(presuffix) rv from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping)").fetchall()
+    ## or maybe even
+    #foo1 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',replace(sub_payload,'ccode',0),'','','')||replace(sub_frm_std,'{cid}','''{0}''')||sbwr||replace(sub_grp_std,'jcode',1) ,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
+    ## doesn't currently work, but will when we replace the {} stuff permanently
+    #"""
+    #foo2 = " ".join([ii[0] for ii in cnx.execute("select pyf(sub_slct_std||sqgr(tc(colcd,presuffix,suffix),'',sub_payload,'','','')||sub_frm_std||sbwr||sub_grp_std,colcd,tc(colcd,presuffix)) from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 group by cid order by cid,grouping,subgrouping").fetchall()])
+    #"""
+    ## the select part of the query
+    #bar = cnx.execute("select group_concat(val) from (select distinct trim(colcd)||trim(presuffix)||trim(suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()
+    ## or maybe even
+    #bar1=cnx.execute("select group_concat(val) from (select distinct tc(colcd,presuffix,suffix) val from df_rules join df_dtdict on trim(df_rules.rule) = trim(df_dtdict.rule) where concode=0 order by cid,grouping,subgrouping)").fetchall()[0][0]
+    ## putting them together...
+    #"select patient_num,start_date, "+bar[0][0]+" from df_joinme "+foo[0][0]
+    ##end_section dynsql_experimental
 
     #section chunks_n_fulloutput2
     # each row in create_dynsql will correspond to one column in the output
