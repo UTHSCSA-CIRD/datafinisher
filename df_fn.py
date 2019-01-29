@@ -244,7 +244,8 @@ def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999,*args,**kwargs):
   matched = len([yy for yy in [tailrx.sub('',xx) for xx in ref] 
 		 if yy in (strname,name,name[:maxlen])])
   # modify the name to have a unique suffix, padded as per pad argument
-  newname = ('%s%s%0'+str(pad)+'d') % (strname,sep,matched) if matched else name[:maxlen]
+  newname = ('%s%s%0'+str(pad)+'d') % (strname,sep,matched)\
+    if matched else name[:maxlen]
   #else: matched = strname
   return newname
 
@@ -296,6 +297,7 @@ class DFMeta:
     assert len(inhead) == len(inmeta), '''
     'inhead' and 'inmeta' args to DFMeta() must be same length'''
     # TODO: normalize lengths, like handleDelimFile does?
+    self.inheadorig = deepcopy(inhead)
     self.inhead = inhead
     self.inmeta = inmeta
     self.ofsmeta = ofsmeta
@@ -333,20 +335,29 @@ class DFMeta:
       iiname = self.inhead[ii]; iimeta = self.inmeta[ii]
       if iimeta == None: iimeta = ''
       ii_as_is_col = (re.match('\{.*\}$',str(iimeta))==None)
+      # if this is not a skip column and an identical header
+      # has already occurred earlier...
+      if iimeta != '' and iiname in self.inheadorig[:ii]:
+	iiname = makeTailUnq(iiname,self.inheadorig[:ii],sep='x',pad=3)
       # this part almost works, but errors on self[ii].finalizeChosen(iinames)
       # in row 452 below
       # DFCols for static input columns
       #if iimeta == '':
 	#self.incols[iiname] = DFColStatic(iimeta,iiname,as_is_col=ii_as_is_col)
       #elif ii_as_is_col: 
-      if ii_as_is_col: 
-	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
+      if not ii_as_is_col: 
       # DFCols for non-static input columns
-      else:
 	iimeta = json.loads(iimeta)
-	iiname = iimeta['colid']
+	# not sure about this one... we're potentially altering the
+	# original data each time. On the other hand letting the
+	# two diverge can cause hard to understand/diagnose bugs
+	# later
+	if iiname != iimeta['colid']:
+	  if not iimeta.get('colidorig'): 
+	    iimeta['colidorig'] = iimeta['colid']
+	  iimeta['colid'] = iiname
 	self.inhead[ii] = iiname
-	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
+      self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
     
     self.updRules(rules=self.rules.copy(),suggestions=suggestions)
     
@@ -594,7 +605,12 @@ class DFMeta:
     '''
     print 'processRows() is writing headers'
     if writeHeaders:
-      mywrite(self.getHeaders())
+      myheaders = self.getHeaders()
+      for ii in range(len(myheaders)):
+	if myheaders[ii] in myheaders[:ii]:
+	  myheaders[ii] = makeTailUnq(myheaders[ii],myheaders[:ii],sep='x'
+			       ,pad=3)
+      mywrite(myheaders)
       mywrite(self.getMetas())
       
     print 'processRows() is writing data'
