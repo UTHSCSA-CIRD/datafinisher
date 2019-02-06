@@ -567,7 +567,7 @@ if __name__ == '__main__':
   if args.cleanup:
     cleanup(con)
   else:
-    DFMeta(args.dbfile,suggestions=suggestor).processRows(outfile='DF_'+csvfile)
+    DFMeta(args.dbfile,suggestions=suggestor).processRows()
     #main(con,csvfile,args.style,dtcp,float(args.minimumcount))
 
 

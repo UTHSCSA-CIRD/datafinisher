@@ -550,12 +550,13 @@ class DFMeta:
       if outfile == None: 
 	if type(self.fhandle) == file: origname = self.fhandle.name
 	else: origname = datetime.now().strftime('%Y%m%d_%H%M%S')+'.csv'
-	outfile = path.normpath(path.dirname(origname))+'/'+\
-	  'df_'+path.basename(origname)
+	outfile = orignname 
       
       if type(outfile) == str: 
 	outname = outfile
-	outfile = csv.writer(open(outfile,outmode),dlc)
+	outfile = csv.writer(open(path.normpath(path.dirname(outfile))+'/'+\
+	  'df_'+path.basename(outfile)),dlc)
+	#outfile = csv.writer(open(outfile,outmode),dlc)
       elif type(outfile) == file: 
 	assert 'a' in outfile.mode or 'w' in outfile.mode,'''
 	If a file handle is passed to processRows() then the mode must be
