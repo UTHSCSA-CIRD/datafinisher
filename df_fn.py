@@ -548,14 +548,16 @@ class DFMeta:
     ''' Name the outfile if needed but not specified'''
     if returnwhat in ('filename','filehandle','csvwriter'):
       if outfile == None: 
-	if type(self.fhandle) == file: origname = self.fhandle.name
-	else: origname = datetime.now().strftime('%Y%m%d_%H%M%S')+'.csv'
-	outfile = orignname 
+	if type(self.fhandle) == file: 
+	  origname = self.fhandle.name
+	else: 
+	  origname = datetime.now().strftime('%Y%m%d_%H%M%S')+'.csv'
+	outfile = origname 
       
       if type(outfile) == str: 
 	outname = outfile
-	outfile = csv.writer(open(path.normpath(path.dirname(outfile))+'/'+\
-	  'df_'+path.basename(outfile)),dlc)
+	outfile = csv.writer(open(path.normpath(path.dirname(outname))+'/'+\
+	  'df_'+path.basename(outname),'w'),dlc)
 	#outfile = csv.writer(open(outfile,outmode),dlc)
       elif type(outfile) == file: 
 	assert 'a' in outfile.mode or 'w' in outfile.mode,'''
