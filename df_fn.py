@@ -556,8 +556,10 @@ class DFMeta:
       
       if type(outfile) == str: 
 	outname = outfile
-	outfile = csv.writer(open(path.normpath(path.dirname(outname))+'/'+\
-	  'df_'+path.basename(outname),'w'),dlc)
+	if(path.isfile(outname)):
+	  outname = path.normpath(path.dirname(outname))+'/'+\
+	  'df_'+path.basename(outname)
+	outfile = csv.writer(open(outname,'w'),dlc)
 	#outfile = csv.writer(open(outfile,outmode),dlc)
       elif type(outfile) == file: 
 	assert 'a' in outfile.mode or 'w' in outfile.mode,'''
