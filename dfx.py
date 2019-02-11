@@ -140,4 +140,6 @@ med01_proc = med00_dfo.processCell(c_median_01_dd,'')
 # 190124: testing DFColStatic
 from df_fn import DFColStatic
 dfcs = DFColStatic(dfm.inmeta[3],dfm.inhead[3])
+
 import pdb; pdb.set_trace()
+

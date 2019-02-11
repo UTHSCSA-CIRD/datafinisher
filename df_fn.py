@@ -342,22 +342,22 @@ class DFMeta:
       # this part almost works, but errors on self[ii].finalizeChosen(iinames)
       # in row 452 below
       # DFCols for static input columns
-      #if iimeta == '':
-	#self.incols[iiname] = DFColStatic(iimeta,iiname,as_is_col=ii_as_is_col)
-      #elif ii_as_is_col: 
-      if not ii_as_is_col: 
-      # DFCols for non-static input columns
-	iimeta = json.loads(iimeta)
-	# not sure about this one... we're potentially altering the
-	# original data each time. On the other hand letting the
-	# two diverge can cause hard to understand/diagnose bugs
-	# later
-	if iiname != iimeta['colid']:
-	  if not iimeta.get('colidorig'): 
-	    iimeta['colidorig'] = iimeta['colid']
-	  iimeta['colid'] = iiname
-	self.inhead[ii] = iiname
-      self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
+      if iimeta == '':
+	self.incols[iiname] = DFColStatic(iimeta,iiname,as_is_col=ii_as_is_col)
+      else: 
+        if not ii_as_is_col: 
+	  # DFCols for non-static input columns
+	  iimeta = json.loads(iimeta)
+	  # not sure about this one... we're potentially altering the
+	  # original data each time. On the other hand letting the
+	  # two diverge can cause hard to understand/diagnose bugs
+	  # later
+	  if iiname != iimeta['colid']:
+	    if not iimeta.get('colidorig'): 
+	      iimeta['colidorig'] = iimeta['colid']
+	    iimeta['colid'] = iiname
+	  self.inhead[ii] = iiname
+	self.incols[iiname] = DFCol(iimeta,iiname,as_is_col=ii_as_is_col)
     
     self.updRules(rules=self.rules.copy(),suggestions=suggestions)
     
