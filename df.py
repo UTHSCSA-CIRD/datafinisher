@@ -430,7 +430,6 @@ def main(cnx,fname,style,dtcp,mincnt):
     # get column names
     # vnms = [ii[0] for ii in vcrs.description]
     #end_section outputmeta
-    #pdb.set_trace()
     
     # i.e. to not create a .csv file, pass 'none' in the -v argument
     if fname.lower() != 'none':
