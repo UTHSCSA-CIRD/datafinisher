@@ -244,6 +244,8 @@ rules = {
     ,"rulesuffix": 'ln'
     # ignore these unless split_by_code is True
     ,"args": []
+    # value to return if the cell is empty
+    ,'retifnone': ''
     }
   ,'med_numeric':{
      'ruledesc':'''Median numeric value for each visit'''
@@ -254,6 +256,7 @@ rules = {
     ,"aggregator": 'median'
     ,"rulesuffix": 'mn'
     ,"args": []
+    ,'retifnone': ''
   }
   ,'diag_active': {
     'ruledesc':'''
@@ -267,6 +270,7 @@ rules = {
     ,"aggregator": 'concatunique'
     ,"rulesuffix": 'dx'
     ,"args": []
+    ,'retifnone': ''
   }
   ,'med_numeric_fltrcode':{
     'ruledesc':'''Last numeric value of the specified code for each visit.'''
@@ -279,6 +283,7 @@ rules = {
     ,"aggregator": 'median'
     ,"rulesuffix": 'mnc'
     ,"args": ['CC']
+    ,'retifnone': ''
     }
   ,'true_false': { 
      'ruledesc':'''True if occurred during visit, otherwise false.'''
@@ -290,6 +295,7 @@ rules = {
     ,"aggregator": 'any'
     ,"rulesuffix": 'tf'
     ,"args": []
+    ,'retifnone': 'False'
     }
   ,"concat_unique": { 
      'ruledesc':'''All unique codes that correspond to this variable recorded during visit.'''
@@ -301,6 +307,7 @@ rules = {
     ,"aggregator": 'concatunique'
     ,"rulesuffix": 'cd'
     ,"args": []
+    ,'retifnone': ''
     }
 }
   
@@ -315,6 +322,7 @@ rules_fallback = {
   ,'aggregator_stronly':'concatunique'
   ,'args': []
   ,'suggested': False
+  ,'retifnone': ''
   # rulesuffix needs to be unique, has to be set manually or be empty?
   # rulename needs to be passed in
   # short_incolid  needed to make shortname

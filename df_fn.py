@@ -665,6 +665,9 @@ class DFMeta:
     and the pid, obtained by extracting the value specified by 'pidname'
     '''
     self.nrows += 1
+    # each row is associated with a specific patient number and the implicit
+    # assumption is made that df.py sorted the rows by patient_num (pn) and 
+    # start_date, in that order
     if self.pn:
       pn_changed = self.pn_last != cells[self.pn_ix]
       if pn_changed: 
@@ -673,6 +676,9 @@ class DFMeta:
 	self.pn_changed = pn_changed
       # TODO: catch when not sorted by patient_num, but this will be harder
       # to do cleanly
+
+    # each row is associated with a specific visit, vs for the patient_num pn
+    # again, assumption is they are sorted in order of increasing vs, and it
     if self.vs:
       if pn_changed or self.vs_last == None:
 	vs_diff = 0
@@ -1283,10 +1289,8 @@ class DFCol:
 	Warning('Calling from outer processCell, json.loads')
 	import pdb;pdb.set_trace()
     if vs_diff != None:
-      if pn_changed:
-	self.vs_diff = 0
-      else:
-	self.vs_diff += vs_diff
+      if pn_changed: self.vs_diff = 0
+      else: self.vs_diff += vs_diff
     out = [xx.processCell(cellval,rawcellval,pn_changed=pn_changed
 			     ,vs_diff=vs_diff,retval=retval,log=log) for xx in self.outcols]
     if out in ([''],None,[]): 
@@ -1335,6 +1339,7 @@ class DFOutCol:
     self.userArgs = myrule.get('userArgs',{})
     self.outcolmeta = ''
     self.retval_previous = None
+    self.retifnone = myrule['retifnone']
     
   def getHeader(self): return(self.outcolid)
   def getMeta(self): return(self.outcolmeta)
@@ -1342,6 +1347,7 @@ class DFOutCol:
   def processCell(self,cellval,rawcellval,pn_changed=None,vs_diff=None
 		  ,retval=None,log=None
   ):
+    #if self.retifnone != '' and retval != None: pdb.set_trace()
     if retval == None:
       # Carry out the select/columns/colsep/aggregate
       out = []
@@ -1354,16 +1360,16 @@ class DFOutCol:
 	    if(len(self.fieldlist)==1): out += [iiargs.get(self.fieldlist[0])]
 	    else: out += [self.fldsep.join([str(n2str(iiargs.get(kk)))\
 	      for kk in self.fieldlist])]
-	retval = self.aggregator(out) if out else ''
+	retval = self.aggregator(out) if out else self.retifnone
       except Exception, ee:
 	# error code 200 = error in individual outcol
 	retval = log(200,str(ee),outcol=self.outcolid) if log else str(ee)
-      else:
-	# retain previous non empty non-error result for this patient
-	# unless records for a new patient have started in which case
-	# reset that value regardless
-	if pn_changed or retval: self.retval_previous = retval
-    return retval or ''
+    else:
+      # retain previous non empty non-error result for this patient
+      # unless records for a new patient have started in which case
+      # reset that value regardless
+      if pn_changed or retval: self.retval_previous = retval
+    return retval or self.retifnone
 
 
 
