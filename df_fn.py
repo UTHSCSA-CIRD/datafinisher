@@ -1,4 +1,4 @@
-import sqlite3 as sq,argparse,re,csv,time,ConfigParser,pdb
+import sqlite3 as sq,re,csv,time,ConfigParser,pdb #,argparse
 import json, sys
 from os import path
 from os.path import dirname
@@ -8,12 +8,13 @@ from copy import deepcopy
 from hashlib import sha1
 cwd = dirname(__file__)
 if cwd == '': cwd = '.'
+from args import CONSOLE_ARGS
 # okay, below looks screwed up because it seems like a circular reference
 # but it does the job of communicating to the functions in this module whether or
 # not the user wants verbose logging
 #try: from df import dolog
 #except: dolog = False
-dolog = False
+dolog = CONSOLE_ARGS.log
 
 # a configuration-like object where all the rules are defined-- what patterns
 # to look for in the JSON fields and what extractors and names to return for
@@ -279,6 +280,7 @@ class DFMeta:
 	       ,patient_num='patient_num',visit_day='age_at_visit_days'
 	       ,mode='r',buffering=-1,dlc=None,minlen=4,sample=1024
   ):
+    
     '''try to parse fref (filehandle/filename)'''
     fhandle,fdata,fhead,fmeta,ofsmeta\
       ,ofsdata = handleDelimFile(fref,dlc=dlc,mode=mode,buffering=buffering
