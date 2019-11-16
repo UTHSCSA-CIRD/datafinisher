@@ -175,7 +175,7 @@ def main(cnx,fname,style,dtcp,mincnt):
     # several times now we have found bugs caused by cpaths remaining as paths becasue nothing catches the root concept codes.
     # Below specifically detects the rows where the cpath has original paths (or anything else that has characters illegal in a column name excep '-')
     # and replaces them with sanitized versions of the raw concept codes whatever they might be
-    logged_execute(cnx, """update df_codeid_tmp set cpath = 'GENERIC_'||grsub('[^A-Za-z0-9_]','_',ccd) where ddomain not in ('ICD9','LOINC','NAACCR','SEER_SITE','ICD10','DEM|ETHNICITY','DEM|MARITAL','DEM|SEX','KUMC|FAMILYHISTORYDIAG','DEM|RACE','DEM|LANGUAGE') and cpath != grs('[^A-Za-z0-9_-]',cpath)""")
+    logged_execute(cnx, """update df_codeid_tmp set cpath = grsub('[^A-Za-z0-9_]','_',ccd) where ddomain not in ('ICD9','LOINC','NAACCR','SEER_SITE','ICD10','DEM|ETHNICITY','DEM|MARITAL','DEM|SEX','KUMC|FAMILYHISTORYDIAG','DEM|RACE','DEM|LANGUAGE') and cpath != grs('[^A-Za-z0-9_-]',cpath)""")
     # TODO: we need to find those and replace them with a sanitized version of the raw concept codes via grsub()
     # TODO: also, make sure that only CCDs that actually exist in obs_fact are included here
     # df_codeid gets created here from the distinct values of df_codeid_tmp
