@@ -1,7 +1,4 @@
 """ Generate dynamic data extraction SQL for DataBuilder output files
----------------------------------------------------------------------
-usage: df.py [-h] [-l] [-c] [-v CSVFILE] [-s {concat,simple}] [-d DATECOMPRESS] [-m MINIMUMCOUNT] dbfile
-    
 """
 
 import sqlite3 as sq,re,csv,time,ConfigParser,pdb,json #,argparse
@@ -526,7 +523,10 @@ def db2df(db,csvfile=None,fileclean=True,mincnt=0,returnwhat='file'
 	
 if __name__ == '__main__':
   dolog = CONSOLE_ARGS.log
-
+  if not CONSOLE_ARGS.dbfile: 
+    print("\nThe '{0}' script was invoked directly without the required 'dbfile' argument.\n".format(__file__))
+    CONSOLE_ARGS.print_help()
+    import sys; sys.exit()
   con = sq.connect(CONSOLE_ARGS.dbfile)
 
   if CONSOLE_ARGS.csvfile == 'OUTFILE':
