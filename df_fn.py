@@ -252,7 +252,18 @@ def makeTailUnq(name,ref,sep='_',pad=2,maxlen=99999,*args,**kwargs):
 
 def n2str(xx): return '' if not xx else xx
 
-
+# Convert anything from unicode to ASCII
+# https://stackoverflow.com/a/13105359/945039
+def byteify(input):
+    if isinstance(input, dict):
+        return {byteify(key): byteify(value)
+                for key, value in input.iteritems()}
+    elif isinstance(input, list):
+        return [byteify(element) for element in input]
+    elif isinstance(input, unicode):
+        return input.encode('utf-8')
+    else:
+        return input
 
 
 
