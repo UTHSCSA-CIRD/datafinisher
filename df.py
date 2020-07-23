@@ -475,7 +475,9 @@ def main(cnx,fname,style,dtcp,mincnt):
     DONE: We will iterate through the data dictionary, joining new columns to the result according to the applicable rule
     """
 
-def db2df(db,csvfile=None,fileclean=True,mincnt=0,returnwhat='file'
+# Why is this here and not in df_fn.py?
+# TODO: Try making the default value of fileclean depend on CONSOLE_ARGS.cleanup
+def db2df(db,csvfile=None,fileclean=CONSOLE_ARGS.cleanup,mincnt=0,returnwhat='file'
 	  ,buffering=-1
 ):
   '''
@@ -546,7 +548,6 @@ if __name__ == '__main__':
     runrules.update(json.loads(''.join([xx for xx in\
       open(CONSOLE_ARGS.rules).read().split('\n') if not xx.startswith('#')])))
 
-  
   if CONSOLE_ARGS.cleanup:
     cleanup(con)
   else:
